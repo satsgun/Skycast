@@ -3,7 +3,7 @@ services:
     name: skycast-backend
     runtime: python
     plan: free
-    region: oregon
+    region: singapore
     rootDir: backend
     buildCommand: pip install .
     startCommand: uvicorn skycast.main:app --host 0.0.0.0 --port $PORT

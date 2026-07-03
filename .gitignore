@@ -5,10 +5,14 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.json
+htmlcov/
 
 # Node
 node_modules/
 dist/
+coverage/
 
 # Editor
 .vscode/
