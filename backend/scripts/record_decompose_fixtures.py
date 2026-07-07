@@ -79,7 +79,7 @@ _SCENARIOS: list[_Scenario] = [
             ),
         ),
         placeholder_response=DataNeedsSpec(
-            use_default_location=True,
+            location_names=[],
             granularities={Granularity.HOURLY},
             window=TimeWindow(
                 start=datetime(2026, 7, 7, 12, 30, tzinfo=timezone.utc),
@@ -94,8 +94,7 @@ _SCENARIOS: list[_Scenario] = [
         query="What's the weather like in Austin this weekend?",
         session_ctx=SessionContext(now=_NOW),
         placeholder_response=DataNeedsSpec(
-            location_name="Austin",
-            use_default_location=False,
+            location_names=["Austin"],
             granularities={Granularity.DAILY},
             window=TimeWindow(
                 start=datetime(2026, 7, 11, 0, 0, tzinfo=timezone.utc),
@@ -113,14 +112,8 @@ _SCENARIOS: list[_Scenario] = [
         name="comparison",
         query="Is it warmer in Miami or Seattle today?",
         session_ctx=SessionContext(now=_NOW),
-        # NOTE: DataNeedsSpec.location_name is a single optional string --
-        # there's no field for multiple locations even though
-        # QueryIntent.COMPARISON exists. This placeholder picks one
-        # location, matching what the current schema can actually hold;
-        # true multi-location comparison needs a DataNeedsSpec revision.
         placeholder_response=DataNeedsSpec(
-            location_name="Miami",
-            use_default_location=False,
+            location_names=["Miami", "Seattle"],
             granularities={Granularity.CURRENT},
             variables={WeatherVariable.TEMPERATURE},
             intent=QueryIntent.COMPARISON,
@@ -131,7 +124,7 @@ _SCENARIOS: list[_Scenario] = [
         query="Will it rain today?",
         session_ctx=SessionContext(now=_NOW),
         placeholder_response=DataNeedsSpec(
-            use_default_location=False,
+            location_names=[],
             granularities={Granularity.CURRENT},
             variables={WeatherVariable.PRECIP_PROBABILITY},
             intent=QueryIntent.CONDITIONS,
@@ -142,8 +135,7 @@ _SCENARIOS: list[_Scenario] = [
         query="What's the weather in Springfield tomorrow?",
         session_ctx=SessionContext(now=_NOW),
         placeholder_response=DataNeedsSpec(
-            location_name="Springfield",
-            use_default_location=False,
+            location_names=["Springfield"],
             granularities={Granularity.DAILY},
             window=TimeWindow(
                 start=datetime(2026, 7, 8, 0, 0, tzinfo=timezone.utc),

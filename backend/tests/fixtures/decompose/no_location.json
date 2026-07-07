@@ -6,8 +6,7 @@
       "CURRENT"
     ],
     "intent": "CONDITIONS",
-    "location_name": null,
-    "use_default_location": false,
+    "location_names": [],
     "variables": [
       "PRECIP_PROBABILITY"
     ],

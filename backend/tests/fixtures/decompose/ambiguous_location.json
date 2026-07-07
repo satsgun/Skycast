@@ -6,8 +6,9 @@
       "DAILY"
     ],
     "intent": "OUTLOOK",
-    "location_name": "Springfield",
-    "use_default_location": false,
+    "location_names": [
+      "Springfield"
+    ],
     "variables": [
       "CONDITION",
       "TEMPERATURE"

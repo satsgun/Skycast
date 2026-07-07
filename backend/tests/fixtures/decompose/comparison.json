@@ -6,8 +6,10 @@
       "CURRENT"
     ],
     "intent": "COMPARISON",
-    "location_name": "Miami",
-    "use_default_location": false,
+    "location_names": [
+      "Miami",
+      "Seattle"
+    ],
     "variables": [
       "TEMPERATURE"
     ],

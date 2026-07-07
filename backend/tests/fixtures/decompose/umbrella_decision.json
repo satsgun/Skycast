@@ -6,8 +6,7 @@
       "HOURLY"
     ],
     "intent": "DECISION",
-    "location_name": null,
-    "use_default_location": true,
+    "location_names": [],
     "variables": [
       "PRECIP_PROBABILITY"
     ],

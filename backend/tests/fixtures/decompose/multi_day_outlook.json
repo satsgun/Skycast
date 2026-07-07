@@ -6,8 +6,9 @@
       "DAILY"
     ],
     "intent": "OUTLOOK",
-    "location_name": "Austin",
-    "use_default_location": false,
+    "location_names": [
+      "Austin"
+    ],
     "variables": [
       "CONDITION",
       "PRECIP_PROBABILITY",

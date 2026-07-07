@@ -48,7 +48,7 @@ def _full_ctx() -> SessionContext:
 
 def _canned_spec() -> DataNeedsSpec:
     return DataNeedsSpec(
-        use_default_location=True,
+        location_names=[],
         granularities={Granularity.HOURLY},
         window=TimeWindow(
             start=datetime(2026, 7, 7, 18, 0, tzinfo=timezone.utc),
