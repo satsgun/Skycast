@@ -85,6 +85,15 @@ class AnthropicLLMClient(LLMClient):
             )
         except anthropic.AnthropicError as exc:
             raise LLMError(f"anthropic request failed: {exc}", reason=type(exc).__name__) from exc
+        except Exception as exc:
+            # The SDK can raise outside its own AnthropicError hierarchy --
+            # e.g. a plain TypeError from auth-method resolution during
+            # header validation when no API key is configured. The seam's
+            # contract is that only LLMError/StructuredOutputError cross
+            # it, so anything else gets normalized here too. str(exc) is
+            # the SDK's own message; never add request headers or the API
+            # key to it.
+            raise LLMError(f"anthropic request failed: {exc}", reason=type(exc).__name__) from exc
 
     @staticmethod
     def _build_tool(*, schema: type[BaseModel], tool_name: str) -> dict[str, Any]:

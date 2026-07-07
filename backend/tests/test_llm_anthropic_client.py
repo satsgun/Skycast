@@ -178,3 +178,45 @@ def test_constructing_without_client_builds_a_real_async_anthropic() -> None:
     client = AnthropicLLMClient(model="claude-haiku-4-5-20251001")
 
     assert isinstance(client._client, AsyncAnthropic)
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [
+        TypeError(
+            "Could not resolve authentication method. Expected one of "
+            "api_key, auth_token, or credentials to be set."
+        ),
+        RuntimeError("boom"),
+        ValueError("bad value"),
+        KeyError("missing"),
+    ],
+)
+def test_arbitrary_sdk_exceptions_are_mapped_to_llm_error(raised: Exception) -> None:
+    fake = _FakeAnthropicClient([raised])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    with pytest.raises(LLMError) as exc_info:
+        asyncio.run(
+            client.get_structured(
+                system="sys prompt", user="what's the weather", schema=_Canned, tool_name=_TOOL_NAME
+            )
+        )
+
+    assert exc_info.value.__cause__ is raised
+
+
+def test_arbitrary_exception_during_repair_call_is_mapped_to_llm_error() -> None:
+    raised = RuntimeError("boom during repair")
+    fake = _FakeAnthropicClient([_tool_use_message({"wrong_field": "oops"}), raised])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    with pytest.raises(LLMError) as exc_info:
+        asyncio.run(
+            client.get_structured(
+                system="sys prompt", user="what's the weather", schema=_Canned, tool_name=_TOOL_NAME
+            )
+        )
+
+    assert exc_info.value.__cause__ is raised
+    assert len(fake.messages.calls) == 2
