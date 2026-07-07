@@ -19,14 +19,7 @@ from skycast.providers.base import WeatherProvider
 from skycast.providers.errors import ProviderError
 from skycast.providers.in_memory import InMemoryProvider
 from skycast.sse.payloads import ErrorKind, PipelineStage
-
-
-class _RecordingEmitter:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, PipelineStage]] = []
-
-    async def __call__(self, label: str, stage: PipelineStage) -> None:
-        self.calls.append((label, stage))
+from tests.helpers import RecordingEmitter
 
 
 def _spec(**overrides) -> DataNeedsSpec:
@@ -67,7 +60,7 @@ def test_happy_single_chain_by_name() -> None:
     spec = _spec(location_names=["Hyderabad"])
     providers = {"open-meteo": InMemoryProvider()}
     built_plan = plan(spec, providers)
-    emitter = _RecordingEmitter()
+    emitter = RecordingEmitter()
 
     result = _run(execute(built_plan, providers, emit=emitter))
 
@@ -84,7 +77,7 @@ def test_skip_geocode_chain_makes_no_geocode_call() -> None:
     providers = {"open-meteo": _GeocodeSpyProvider()}
     default = _location("Hyderabad", 17.385, 78.4867)
     built_plan = plan(spec, providers, default_location=default)
-    emitter = _RecordingEmitter()
+    emitter = RecordingEmitter()
 
     result = _run(execute(built_plan, providers, emit=emitter))
 
@@ -97,7 +90,7 @@ def test_zero_matches_is_not_found() -> None:
     providers = {"open-meteo": InMemoryProvider()}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.NOT_FOUND
@@ -109,7 +102,7 @@ def test_ambiguous_match_needs_clarification() -> None:
     providers = {"open-meteo": InMemoryProvider()}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, NeedsClarification)
     assert len(result.candidates) == 3
@@ -121,7 +114,7 @@ def test_forecast_provider_outage_is_provider_unreachable() -> None:
     providers = {"open-meteo": InMemoryProvider(fail_forecast=True)}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.PROVIDER_UNREACHABLE
@@ -132,7 +125,7 @@ def test_geocode_provider_outage_is_provider_unreachable() -> None:
     providers = {"open-meteo": InMemoryProvider(fail_geocode=True)}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.PROVIDER_UNREACHABLE
@@ -155,7 +148,7 @@ def test_comparison_happy_path_two_forecasts_in_chain_order() -> None:
     providers = _comparison_providers()
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, Success)
     assert len(result.forecasts) == 2
@@ -199,7 +192,7 @@ def test_independent_geocode_chains_run_concurrently() -> None:
     # execute() will fail at the forecast phase (fetch_forecast unimplemented),
     # but the geocode phase's concurrency already happened by then.
     with pytest.raises(NotImplementedError):
-        _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+        _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     starts = [e for e in events if e.startswith("geocode-start")]
     ends = [e for e in events if e.startswith("geocode-end")]
@@ -227,7 +220,7 @@ def test_comparison_ambiguous_plus_success_needs_clarification() -> None:
     spec = _spec(location_names=["Springfield", "Miami"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, NeedsClarification)
     assert result.for_location_name == "Springfield"
@@ -268,7 +261,7 @@ def test_comparison_provider_unreachable_wins_over_ambiguous_and_cancels_slow_si
     spec = _spec(location_names=["ambiguous-city", "failing-city"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.PROVIDER_UNREACHABLE
@@ -279,7 +272,7 @@ def test_unknown_provider_id_is_internal_error() -> None:
     spec = _spec(location_names=["Hyderabad"])
     built_plan = plan(spec, {"open-meteo": InMemoryProvider()})
 
-    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=RecordingEmitter()))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.INTERNAL
@@ -293,7 +286,7 @@ def test_unknown_provider_id_on_skip_geocode_chain_is_internal_error() -> None:
     default = _location("Hyderabad", 17.385, 78.4867)
     built_plan = plan(spec, {"open-meteo": InMemoryProvider()}, default_location=default)
 
-    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=_RecordingEmitter()))
+    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=RecordingEmitter()))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.INTERNAL
@@ -305,8 +298,8 @@ def test_determinism_same_plan_and_providers_produce_equal_result() -> None:
     providers = {"open-meteo": InMemoryProvider(now=lambda: fixed_now)}
     built_plan = plan(spec, providers)
 
-    first = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
-    second = _run(execute(built_plan, providers, emit=_RecordingEmitter()))
+    first = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    second = _run(execute(built_plan, providers, emit=RecordingEmitter()))
 
     assert first == second
 
