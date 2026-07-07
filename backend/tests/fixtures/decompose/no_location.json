@@ -1,0 +1,26 @@
+{
+  "name": "no_location",
+  "query": "Will it rain today?",
+  "response": {
+    "granularities": [
+      "CURRENT"
+    ],
+    "intent": "CONDITIONS",
+    "location_name": null,
+    "use_default_location": false,
+    "variables": [
+      "PRECIP_PROBABILITY"
+    ],
+    "window": null
+  },
+  "session_ctx": {
+    "carried_location_name": null,
+    "carried_window": null,
+    "default_location": null,
+    "now": "2026-07-07T12:00:00Z",
+    "units_hint": null
+  },
+  "synthetic": true,
+  "system": "PLACEHOLDER: stage-1 decompose system prompt not yet authored (Task 14.6).",
+  "user": "Query: Will it rain today?\nCurrent time: 2026-07-07T12:00:00+00:00"
+}

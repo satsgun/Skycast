@@ -1,0 +1,30 @@
+{
+  "name": "ambiguous_location",
+  "query": "What's the weather in Springfield tomorrow?",
+  "response": {
+    "granularities": [
+      "DAILY"
+    ],
+    "intent": "OUTLOOK",
+    "location_name": "Springfield",
+    "use_default_location": false,
+    "variables": [
+      "CONDITION",
+      "TEMPERATURE"
+    ],
+    "window": {
+      "end": "2026-07-08T23:59:00Z",
+      "start": "2026-07-08T00:00:00Z"
+    }
+  },
+  "session_ctx": {
+    "carried_location_name": null,
+    "carried_window": null,
+    "default_location": null,
+    "now": "2026-07-07T12:00:00Z",
+    "units_hint": null
+  },
+  "synthetic": true,
+  "system": "PLACEHOLDER: stage-1 decompose system prompt not yet authored (Task 14.6).",
+  "user": "Query: What's the weather in Springfield tomorrow?\nCurrent time: 2026-07-07T12:00:00+00:00"
+}

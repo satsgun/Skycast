@@ -1,0 +1,31 @@
+{
+  "name": "multi_day_outlook",
+  "query": "What's the weather like in Austin this weekend?",
+  "response": {
+    "granularities": [
+      "DAILY"
+    ],
+    "intent": "OUTLOOK",
+    "location_name": "Austin",
+    "use_default_location": false,
+    "variables": [
+      "CONDITION",
+      "PRECIP_PROBABILITY",
+      "TEMPERATURE"
+    ],
+    "window": {
+      "end": "2026-07-12T23:59:00Z",
+      "start": "2026-07-11T00:00:00Z"
+    }
+  },
+  "session_ctx": {
+    "carried_location_name": null,
+    "carried_window": null,
+    "default_location": null,
+    "now": "2026-07-07T12:00:00Z",
+    "units_hint": null
+  },
+  "synthetic": true,
+  "system": "PLACEHOLDER: stage-1 decompose system prompt not yet authored (Task 14.6).",
+  "user": "Query: What's the weather like in Austin this weekend?\nCurrent time: 2026-07-07T12:00:00+00:00"
+}
