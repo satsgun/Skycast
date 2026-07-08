@@ -166,3 +166,30 @@ def test_cors_preflight_succeeds_for_allowed_origin() -> None:
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
     assert "POST" in response.headers["access-control-allow-methods"]
+
+
+def test_get_providers_reads_from_app_state_when_not_overridden() -> None:
+    app.dependency_overrides.clear()
+    providers = {"in-memory": InMemoryProvider()}
+    llm = _llm_client(_spec(location_names=["Hyderabad"]))
+    app.state.providers = providers
+    app.state.llm_client = llm
+    try:
+        response = client.post("/query", json=_request_body())
+        assert response.status_code == 200
+    finally:
+        del app.state.providers
+        del app.state.llm_client
+
+
+def test_lifespan_wires_real_providers_and_llm_client_into_app_state() -> None:
+    try:
+        with TestClient(app) as temp_client:
+            assert isinstance(app.state.providers, dict)
+            assert "in-memory" in app.state.providers
+            assert app.state.llm_client is not None
+            response = temp_client.get("/health")
+            assert response.status_code == 200
+    finally:
+        del app.state.providers
+        del app.state.llm_client

@@ -6,14 +6,17 @@ each SSEEvent is serialized via the Task 13.4 wire serializer as one
 `data: {...}\n\n` line, written to the stream as it's produced.
 
 get_providers/get_llm_client are FastAPI dependencies, not constructed
-inline -- their defaults raise until overridden by app startup wiring
-(Task 18.6, not yet built) or by tests (app.dependency_overrides), so
-nothing here silently falls back to a fake registry/client.
+inline. In production, app startup wiring (Task 18.6, main.py's
+lifespan) stashes the real registry/client on app.state, and these
+functions just read it back; in tests, app.dependency_overrides replaces
+them outright. Either way, nothing here constructs a provider/client
+inline, and the fallback raise means an unconfigured app fails loudly
+rather than silently serving something wrong.
 """
 
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from skycast.api.query_request import QueryRequest
@@ -25,18 +28,24 @@ from skycast.sse.wire import serialize_sse_event
 router = APIRouter()
 
 
-def get_providers() -> dict[str, WeatherProvider]:
-    raise NotImplementedError(
-        "no provider registry configured -- wire one at app startup "
-        "(Task 18.6) or override get_providers in tests"
-    )
+def get_providers(request: Request) -> dict[str, WeatherProvider]:
+    providers = getattr(request.app.state, "providers", None)
+    if providers is None:
+        raise NotImplementedError(
+            "no provider registry configured -- app startup wiring "
+            "(Task 18.6) didn't run, or override get_providers in tests"
+        )
+    return providers
 
 
-def get_llm_client() -> LLMClient:
-    raise NotImplementedError(
-        "no LLMClient configured -- wire one at app startup (Task 18.6) "
-        "or override get_llm_client in tests"
-    )
+def get_llm_client(request: Request) -> LLMClient:
+    llm = getattr(request.app.state, "llm_client", None)
+    if llm is None:
+        raise NotImplementedError(
+            "no LLMClient configured -- app startup wiring (Task 18.6) "
+            "didn't run, or override get_llm_client in tests"
+        )
+    return llm
 
 
 @router.post("/query")

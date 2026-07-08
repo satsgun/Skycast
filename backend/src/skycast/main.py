@@ -1,11 +1,21 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from skycast.api.routes import router
+from skycast.api.wiring import build_llm_client, build_provider_registry
 
-app = FastAPI(title="SkyCast API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.providers = build_provider_registry()
+    app.state.llm_client = build_llm_client()
+    yield
+
+
+app = FastAPI(title="SkyCast API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
