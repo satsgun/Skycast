@@ -43,7 +43,7 @@ The frontend dispatches on the `type` field from one `onmessage` handler
 | Field  | Type         | Notes |
 |--------|--------------|-------|
 | `text` | string       | The answer-first conclusion -- leads with the decision/exception. |
-| `card` | `AnswerCard` | `{"forecast": Forecast, "highlight": <timestamp \| date \| null>}` -- the full resolved `Forecast`, sent as-is, plus which reading the answer is about. |
+| `card` | `AnswerCard` | `{"forecasts": Forecast[], "highlight": Highlight \| null}` -- the resolved `Forecast`(s), sent as-is (one per compared location), plus which reading the answer is about. `Highlight` is `{"forecast_index": int, "locator": ReadingLocator}`; `ReadingLocator` is `{"block": "current" \| "hourly" \| "daily", "index": int \| null}` (`null` index only for `current`). |
 
 ### `error` -- terminal: something went wrong
 
@@ -75,7 +75,7 @@ data: {"type":"step","data":{"label":"Fetching the forecast...","stage":"execute
 
 data: {"type":"step","data":{"label":"Putting together your answer...","stage":"synthesize"}}
 
-data: {"type":"answer","data":{"text":"Yes, bring an umbrella this evening -- rain is likely around 6pm.","card":{"forecast":{"location":{"id":"1","name":"Hyderabad","latitude":17.385,"longitude":78.4867,"country":null,"country_code":"IN","admin1":null,"admin2":null,"population":null,"timezone":"Asia/Kolkata"},"units":{"temperature":"celsius","wind_speed":"kmh","precip_amount":"mm","precip_probability":"percent"},"current":{"timestamp":"2024-06-01T18:00:00Z","temperature":27.0,"feels_like":null,"precip_probability":80.0,"precip_amount":null,"wind_speed":null,"condition_code":"RAIN"},"hourly":null,"daily":null},"highlight":"2024-06-01T18:00:00Z"}}}
+data: {"type":"answer","data":{"text":"Yes, bring an umbrella this evening -- rain is likely around 6pm.","card":{"forecasts":[{"location":{"id":"1","name":"Hyderabad","latitude":17.385,"longitude":78.4867,"country":null,"country_code":"IN","admin1":null,"admin2":null,"population":null,"timezone":"Asia/Kolkata"},"units":{"temperature":"celsius","wind_speed":"kmh","precip_amount":"mm","precip_probability":"percent"},"current":{"timestamp":"2024-06-01T18:00:00Z","temperature":27.0,"feels_like":null,"precip_probability":80.0,"precip_amount":null,"wind_speed":null,"condition_code":"RAIN"},"hourly":null,"daily":null}],"highlight":{"forecast_index":0,"locator":{"block":"current","index":null}}}}}
 
 ```
 

@@ -54,7 +54,7 @@ def test_clarify_constructor_produces_matching_type_and_payload() -> None:
 
 
 def test_answer_constructor_produces_matching_type_and_payload() -> None:
-    card = AnswerCard(forecast=_forecast())
+    card = AnswerCard(forecasts=[_forecast()])
     event = SSEEvent.answer("Yes, bring an umbrella.", card)
     assert event.type is SSEEventType.ANSWER
     assert isinstance(event.data, AnswerPayload)
@@ -99,7 +99,7 @@ def test_clarify_event_round_trips_through_json() -> None:
 
 
 def test_answer_event_round_trips_through_json() -> None:
-    event = SSEEvent.answer("Yes.", AnswerCard(forecast=_forecast()))
+    event = SSEEvent.answer("Yes.", AnswerCard(forecasts=[_forecast()]))
     restored = SSEEvent.model_validate_json(event.model_dump_json())
     assert restored == event
     assert isinstance(restored.data, AnswerPayload)

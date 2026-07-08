@@ -65,7 +65,7 @@ def test_clarify_event_round_trips_through_wire_format() -> None:
 
 
 def test_answer_event_round_trips_through_wire_format() -> None:
-    event = SSEEvent.answer("Yes.", AnswerCard(forecast=_forecast()))
+    event = SSEEvent.answer("Yes.", AnswerCard(forecasts=[_forecast()]))
     wire = serialize_sse_event(event)
     restored = SSEEvent.model_validate_json(_data_json(wire))
     assert restored == event

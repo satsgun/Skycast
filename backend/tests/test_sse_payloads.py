@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -12,7 +12,10 @@ from skycast.sse.payloads import (
     ClarifyPayload,
     ErrorKind,
     ErrorPayload,
+    ForecastBlock,
+    Highlight,
     PipelineStage,
+    ReadingLocator,
     StepPayload,
 )
 
@@ -112,68 +115,150 @@ def test_clarify_payload_round_trips_through_json() -> None:
     assert restored == payload
 
 
-def test_answer_card_constructs_with_datetime_highlight() -> None:
-    highlight = datetime(2024, 1, 1, 15, 0, tzinfo=timezone.utc)
-    card = AnswerCard(forecast=_forecast(), highlight=highlight)
-    assert card.highlight == highlight
+def test_reading_locator_constructs_with_current_block_and_no_index() -> None:
+    locator = ReadingLocator(block=ForecastBlock.CURRENT)
+    assert locator.block is ForecastBlock.CURRENT
+    assert locator.index is None
 
 
-def test_answer_card_constructs_with_date_highlight() -> None:
-    card = AnswerCard(forecast=_forecast(), highlight=date(2024, 1, 1))
-    assert card.highlight == date(2024, 1, 1)
+def test_reading_locator_constructs_with_hourly_block_and_index() -> None:
+    locator = ReadingLocator(block=ForecastBlock.HOURLY, index=0)
+    assert locator.index == 0
 
 
-def test_answer_card_constructs_with_no_highlight() -> None:
-    card = AnswerCard(forecast=_forecast())
+def test_reading_locator_constructs_with_daily_block_and_index() -> None:
+    locator = ReadingLocator(block=ForecastBlock.DAILY, index=2)
+    assert locator.index == 2
+
+
+def test_reading_locator_rejects_index_on_current_block() -> None:
+    with pytest.raises(ValidationError):
+        ReadingLocator(block=ForecastBlock.CURRENT, index=0)
+
+
+def test_reading_locator_rejects_missing_index_on_hourly_block() -> None:
+    with pytest.raises(ValidationError):
+        ReadingLocator(block=ForecastBlock.HOURLY)
+
+
+def test_reading_locator_rejects_missing_index_on_daily_block() -> None:
+    with pytest.raises(ValidationError):
+        ReadingLocator(block=ForecastBlock.DAILY)
+
+
+def test_reading_locator_rejects_negative_index() -> None:
+    with pytest.raises(ValidationError):
+        ReadingLocator(block=ForecastBlock.HOURLY, index=-1)
+
+
+def test_reading_locator_is_frozen() -> None:
+    locator = ReadingLocator(block=ForecastBlock.CURRENT)
+    with pytest.raises(ValidationError):
+        locator.index = 0
+
+
+def test_reading_locator_round_trips_through_json() -> None:
+    locator = ReadingLocator(block=ForecastBlock.HOURLY, index=3)
+    restored = ReadingLocator.model_validate_json(locator.model_dump_json())
+    assert restored == locator
+
+
+def test_highlight_constructs_with_forecast_index_and_locator() -> None:
+    highlight = Highlight(
+        forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT)
+    )
+    assert highlight.forecast_index == 0
+    assert highlight.locator.block is ForecastBlock.CURRENT
+
+
+def test_highlight_rejects_negative_forecast_index() -> None:
+    with pytest.raises(ValidationError):
+        Highlight(forecast_index=-1, locator=ReadingLocator(block=ForecastBlock.CURRENT))
+
+
+def test_highlight_is_frozen() -> None:
+    highlight = Highlight(
+        forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT)
+    )
+    with pytest.raises(ValidationError):
+        highlight.forecast_index = 1
+
+
+def test_highlight_round_trips_through_json() -> None:
+    highlight = Highlight(
+        forecast_index=1, locator=ReadingLocator(block=ForecastBlock.DAILY, index=0)
+    )
+    restored = Highlight.model_validate_json(highlight.model_dump_json())
+    assert restored == highlight
+
+
+def test_answer_card_constructs_with_single_forecast_and_no_highlight() -> None:
+    card = AnswerCard(forecasts=[_forecast()])
     assert card.highlight is None
 
 
-def test_answer_card_is_frozen() -> None:
-    card = AnswerCard(forecast=_forecast())
+def test_answer_card_constructs_with_single_forecast_and_highlight() -> None:
+    highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT))
+    card = AnswerCard(forecasts=[_forecast()], highlight=highlight)
+    assert card.highlight == highlight
+
+
+def test_answer_card_constructs_with_two_forecasts_for_comparison() -> None:
+    first, second = _forecast(), _forecast()
+    highlight = Highlight(forecast_index=1, locator=ReadingLocator(block=ForecastBlock.CURRENT))
+    card = AnswerCard(forecasts=[first, second], highlight=highlight)
+    assert card.forecasts == [first, second]
+    assert card.highlight.forecast_index == 1
+    assert card.forecasts[card.highlight.forecast_index] == second
+
+
+def test_answer_card_rejects_empty_forecasts() -> None:
     with pytest.raises(ValidationError):
-        card.highlight = date(2024, 1, 1)
+        AnswerCard(forecasts=[])
 
 
-def test_answer_card_round_trips_through_json_with_datetime_highlight() -> None:
-    card = AnswerCard(
-        forecast=_forecast(), highlight=datetime(2024, 1, 1, 15, 0, tzinfo=timezone.utc)
-    )
+def test_answer_card_is_frozen() -> None:
+    card = AnswerCard(forecasts=[_forecast()])
+    with pytest.raises(ValidationError):
+        card.highlight = None
+
+
+def test_answer_card_round_trips_through_json_with_highlight() -> None:
+    highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT))
+    card = AnswerCard(forecasts=[_forecast()], highlight=highlight)
     restored = AnswerCard.model_validate_json(card.model_dump_json())
     assert restored == card
-    assert isinstance(restored.highlight, datetime)
-
-
-def test_answer_card_round_trips_through_json_with_date_highlight() -> None:
-    card = AnswerCard(forecast=_forecast(), highlight=date(2024, 1, 1))
-    restored = AnswerCard.model_validate_json(card.model_dump_json())
-    assert restored == card
-    assert isinstance(restored.highlight, date) and not isinstance(
-        restored.highlight, datetime
-    )
 
 
 def test_answer_card_round_trips_through_json_with_no_highlight() -> None:
-    card = AnswerCard(forecast=_forecast())
+    card = AnswerCard(forecasts=[_forecast()])
     restored = AnswerCard.model_validate_json(card.model_dump_json())
     assert restored == card
 
 
+def test_answer_card_round_trips_through_json_preserving_forecast_order() -> None:
+    card = AnswerCard(forecasts=[_forecast(), _forecast()])
+    restored = AnswerCard.model_validate_json(card.model_dump_json())
+    assert restored == card
+    assert len(restored.forecasts) == 2
+
+
 def test_answer_payload_constructs_with_text_and_card() -> None:
-    card = AnswerCard(forecast=_forecast())
+    card = AnswerCard(forecasts=[_forecast()])
     payload = AnswerPayload(text="Yes, bring an umbrella.", card=card)
     assert payload.text == "Yes, bring an umbrella."
     assert payload.card == card
 
 
 def test_answer_payload_is_frozen() -> None:
-    payload = AnswerPayload(text="Yes.", card=AnswerCard(forecast=_forecast()))
+    payload = AnswerPayload(text="Yes.", card=AnswerCard(forecasts=[_forecast()]))
     with pytest.raises(ValidationError):
         payload.text = "No."
 
 
 def test_answer_payload_round_trips_through_json() -> None:
     payload = AnswerPayload(
-        text="Yes, bring an umbrella.", card=AnswerCard(forecast=_forecast())
+        text="Yes, bring an umbrella.", card=AnswerCard(forecasts=[_forecast()])
     )
     restored = AnswerPayload.model_validate_json(payload.model_dump_json())
     assert restored == payload

@@ -20,7 +20,7 @@ from skycast.domain.conditions import ConditionCode
 from skycast.domain.forecast import Forecast, HourlyReading, Units
 from skycast.domain.location import Location
 from skycast.sse.envelope import SSEEvent
-from skycast.sse.payloads import AnswerCard, PipelineStage
+from skycast.sse.payloads import AnswerCard, ForecastBlock, Highlight, PipelineStage, ReadingLocator
 from skycast.sse.wire import serialize_sse_event
 
 DEFAULT_DOC_PATH = Path(__file__).parents[4] / "docs" / "sse-contract.md"
@@ -53,7 +53,12 @@ def happy_path_events() -> list[SSEEvent]:
         SSEEvent.step("Putting together your answer...", PipelineStage.SYNTHESIZE),
         SSEEvent.answer(
             "Yes, bring an umbrella this evening -- rain is likely around 6pm.",
-            AnswerCard(forecast=forecast, highlight=forecast.current.timestamp),
+            AnswerCard(
+                forecasts=[forecast],
+                highlight=Highlight(
+                    forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT)
+                ),
+            ),
         ),
     ]
 
@@ -145,7 +150,7 @@ The frontend dispatches on the `type` field from one `onmessage` handler
 | Field  | Type         | Notes |
 |--------|--------------|-------|
 | `text` | string       | The answer-first conclusion -- leads with the decision/exception. |
-| `card` | `AnswerCard` | `{{"forecast": Forecast, "highlight": <timestamp \\| date \\| null>}}` -- the full resolved `Forecast`, sent as-is, plus which reading the answer is about. |
+| `card` | `AnswerCard` | `{{"forecasts": Forecast[], "highlight": Highlight \\| null}}` -- the resolved `Forecast`(s), sent as-is (one per compared location), plus which reading the answer is about. `Highlight` is `{{"forecast_index": int, "locator": ReadingLocator}}`; `ReadingLocator` is `{{"block": "current" \\| "hourly" \\| "daily", "index": int \\| null}}` (`null` index only for `current`). |
 
 ### `error` -- terminal: something went wrong
 

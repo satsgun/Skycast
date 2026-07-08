@@ -7,10 +7,9 @@ provider, no FastAPI -- so these stay pure and testable independent of
 the orchestrator that will eventually produce them (Phase 5).
 """
 
-from datetime import date
 from enum import StrEnum
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from skycast.domain.forecast import Forecast
 from skycast.domain.location import Location
@@ -44,16 +43,52 @@ class ClarifyPayload(BaseModel):
     candidates: list[Location] = Field(min_length=2)
 
 
-class AnswerCard(BaseModel):
-    """Structured card data for the UI: the full resolved Forecast as-is
-    (no slimmer projection -- the FE picks what to render) plus a hint at
-    which reading the answer text is about.
+class ForecastBlock(StrEnum):
+    CURRENT = "current"
+    HOURLY = "hourly"
+    DAILY = "daily"
+
+
+class ReadingLocator(BaseModel):
+    """Identifies a reading within a Forecast without duplicating its
+    data. `current` is a single reading (index must be None); `hourly`
+    and `daily` are series (index is the position within that series).
     """
 
     model_config = ConfigDict(frozen=True)
 
-    forecast: Forecast
-    highlight: AwareDatetime | date | None = None
+    block: ForecastBlock
+    index: int | None = None
+
+    @model_validator(mode="after")
+    def _require_index_consistent_with_block(self) -> "ReadingLocator":
+        if self.block == ForecastBlock.CURRENT:
+            if self.index is not None:
+                raise ValueError("current block is a single reading; index must be None")
+        elif self.index is None or self.index < 0:
+            raise ValueError(f"{self.block.value} block requires a non-negative index")
+        return self
+
+
+class Highlight(BaseModel):
+    """Points at one reading in one of AnswerCard.forecasts."""
+
+    model_config = ConfigDict(frozen=True)
+
+    forecast_index: int = Field(ge=0)
+    locator: ReadingLocator
+
+
+class AnswerCard(BaseModel):
+    """Structured card data for the UI: the resolved Forecast(s) as-is
+    (no slimmer projection -- the FE picks what to render) plus a hint at
+    which reading, in which forecast, the answer text is about.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    forecasts: list[Forecast] = Field(min_length=1)
+    highlight: Highlight | None = None
 
 
 class AnswerPayload(BaseModel):
