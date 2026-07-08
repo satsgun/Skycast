@@ -1,12 +1,17 @@
 from skycast.api.wiring import build_llm_client, build_provider_registry
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.providers.in_memory import InMemoryProvider
+from skycast.providers.open_meteo.provider import OpenMeteoProvider
 
 
-def test_build_provider_registry_returns_in_memory_entry() -> None:
+def test_build_provider_registry_returns_open_meteo_and_in_memory() -> None:
     registry = build_provider_registry()
 
-    assert set(registry) == {"in-memory"}
+    # Order is load-bearing: select_provider's v1 ranking is
+    # order-preserving, so insertion order decides which provider
+    # actually serves a request when both report the same capabilities.
+    assert list(registry) == ["open-meteo", "in-memory"]
+    assert isinstance(registry["open-meteo"], OpenMeteoProvider)
     assert isinstance(registry["in-memory"], InMemoryProvider)
 
 

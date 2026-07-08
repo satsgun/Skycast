@@ -10,17 +10,21 @@ from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.client import LLMClient
 from skycast.providers.base import WeatherProvider
 from skycast.providers.in_memory import InMemoryProvider
+from skycast.providers.open_meteo.provider import OpenMeteoProvider
 
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 
 def build_provider_registry() -> dict[str, WeatherProvider]:
     """The real (v1) dict[str, WeatherProvider] plan()/execute() expect
-    (Tasks 15.3/16.2). OpenMeteoProvider (Phase 6) isn't built yet and
-    is explicitly out of scope for Task 18 -- InMemoryProvider stands in
-    as the sole real entry until then; swap this one line in later.
+    (Tasks 15.3/16.2). OpenMeteoProvider is listed first -- select_provider's
+    v1 ranking (provider_selection.py) is order-preserving, so insertion
+    order is what actually decides which provider serves a request when
+    (as today) multiple providers report the same capabilities.
+    InMemoryProvider stays registered too (harmless, currently
+    unreachable via selection given the trivial v1 ranking).
     """
-    return {"in-memory": InMemoryProvider()}
+    return {"open-meteo": OpenMeteoProvider(), "in-memory": InMemoryProvider()}
 
 
 def build_llm_client() -> LLMClient:
