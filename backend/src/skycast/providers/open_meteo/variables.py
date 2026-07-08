@@ -1,11 +1,14 @@
-"""Open-Meteo variable-name mapping (Task 19.1).
+"""Open-Meteo variable-name mapping (Task 19.1, extended by 19.4).
 
 The single source of Open-Meteo's forecast parameter names -- nothing
 outside this module knows them. Canonical WeatherVariable (Task 11)
-maps differently per block: hourly is one param each; daily has no
-single "value" for TEMPERATURE, only max/min extremes, so it expands to
-a pair of daily params. FEELS_LIKE has no daily param at all -- see
-_DAILY_PARAMS below.
+maps differently per block: hourly/daily/current each have their own
+table. TEMPERATURE always expands into every block's always-included
+set (HourlyReading.temperature / DailyReading.temp_min/temp_max are
+required, non-optional fields -- same reasoning as weather_code, just
+missed when 19.1 was first written). FEELS_LIKE has no daily param at
+all, and PRECIP_PROBABILITY has no current param at all -- see the
+tables below.
 """
 
 from skycast.domain.provider import WeatherVariable
@@ -32,13 +35,33 @@ _DAILY_PARAMS: dict[WeatherVariable, tuple[str, ...]] = {
     WeatherVariable.CONDITION: ("weather_code",),
 }
 
-# condition_code is a required (non-optional) field on every reading
-# (Task 10), so weather_code must always be requested regardless of
-# whether the caller asked for WeatherVariable.CONDITION. Daily also
-# always carries sunrise/sunset (optional DailyReading fields, but
-# Open-Meteo always returns them for the daily block).
-_ALWAYS_HOURLY: tuple[str, ...] = ("weather_code",)
-_ALWAYS_DAILY: tuple[str, ...] = ("weather_code", "sunrise", "sunset")
+# PRECIP_PROBABILITY has no current param -- Open-Meteo's current=
+# block has no probability field at all (probability requires a
+# forecast-model spread; "right now" has none). Same
+# skip-if-absent-from-table mechanism as daily FEELS_LIKE above.
+_CURRENT_PARAMS: dict[WeatherVariable, tuple[str, ...]] = {
+    WeatherVariable.TEMPERATURE: ("temperature_2m",),
+    WeatherVariable.FEELS_LIKE: ("apparent_temperature",),
+    WeatherVariable.PRECIP_AMOUNT: ("precipitation",),
+    WeatherVariable.WIND_SPEED: ("wind_speed_10m",),
+    WeatherVariable.CONDITION: ("weather_code",),
+}
+
+# condition_code and temperature are required (non-optional) fields on
+# every reading (Task 10), so weather_code and temperature_2m must
+# always be requested regardless of which WeatherVariables the caller
+# asked for. Daily also always carries sunrise/sunset (optional
+# DailyReading fields, but Open-Meteo always returns them for the
+# daily block) and its own max/min temperature pair.
+_ALWAYS_HOURLY: tuple[str, ...] = ("weather_code", "temperature_2m")
+_ALWAYS_DAILY: tuple[str, ...] = (
+    "weather_code",
+    "sunrise",
+    "sunset",
+    "temperature_2m_max",
+    "temperature_2m_min",
+)
+_ALWAYS_CURRENT: tuple[str, ...] = ("weather_code", "temperature_2m")
 
 
 def hourly_params(variables: set[WeatherVariable]) -> list[str]:
@@ -49,6 +72,11 @@ def hourly_params(variables: set[WeatherVariable]) -> list[str]:
 def daily_params(variables: set[WeatherVariable]) -> list[str]:
     """Open-Meteo `daily=` param list for the requested variables."""
     return _params(variables, _DAILY_PARAMS, _ALWAYS_DAILY)
+
+
+def current_params(variables: set[WeatherVariable]) -> list[str]:
+    """Open-Meteo `current=` param list for the requested variables."""
+    return _params(variables, _CURRENT_PARAMS, _ALWAYS_CURRENT)
 
 
 def _params(
