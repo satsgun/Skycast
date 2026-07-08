@@ -18,3 +18,9 @@ prompt can be swapped in later without touching pipeline logic.
 """
 
 DECOMPOSE_SYSTEM_PROMPT = "PLACEHOLDER: stage-1 decompose system prompt not yet authored (Task 14.6)."
+
+# Stage-4 synthesize system prompt (Task 17.3 scaffolding) -- placeholder
+# only; Task 17.4 owns writing the full contract documentation here
+# (mirrors Task 14.5 -> 14.6). synthesize() loads this constant so the
+# real prompt can be swapped in later without touching pipeline logic.
+SYNTHESIZE_SYSTEM_PROMPT = "PLACEHOLDER: stage-4 synthesize system prompt not yet authored (Task 17.4)."
