@@ -1,0 +1,78 @@
+{
+  "forecasts": [
+    {
+      "current": {
+        "condition_code": "CLOUDY",
+        "feels_like": 31.0,
+        "precip_amount": null,
+        "precip_probability": 20.0,
+        "temperature": 29.0,
+        "timestamp": "2026-07-07T12:00:00Z",
+        "wind_speed": 10.0
+      },
+      "daily": null,
+      "hourly": [
+        {
+          "condition_code": "CLOUDY",
+          "feels_like": null,
+          "precip_amount": null,
+          "precip_probability": 30.0,
+          "temperature": 28.0,
+          "timestamp": "2026-07-07T15:00:00Z",
+          "wind_speed": null
+        },
+        {
+          "condition_code": "RAIN",
+          "feels_like": null,
+          "precip_amount": null,
+          "precip_probability": 80.0,
+          "temperature": 25.0,
+          "timestamp": "2026-07-07T18:00:00Z",
+          "wind_speed": null
+        },
+        {
+          "condition_code": "CLOUDY",
+          "feels_like": null,
+          "precip_amount": null,
+          "precip_probability": 40.0,
+          "temperature": 23.0,
+          "timestamp": "2026-07-07T21:00:00Z",
+          "wind_speed": null
+        }
+      ],
+      "location": {
+        "admin1": null,
+        "admin2": null,
+        "country": "India",
+        "country_code": "IN",
+        "id": "in-memory:hyderabad-in",
+        "latitude": 17.385,
+        "longitude": 78.4867,
+        "name": "Hyderabad",
+        "population": null,
+        "timezone": "Asia/Kolkata"
+      },
+      "units": {
+        "precip_amount": "mm",
+        "precip_probability": "percent",
+        "temperature": "celsius",
+        "wind_speed": "kmh"
+      }
+    }
+  ],
+  "intent": "DECISION",
+  "name": "umbrella_decision",
+  "response": {
+    "highlight": {
+      "forecast_index": 0,
+      "locator": {
+        "block": "hourly",
+        "index": 1
+      }
+    },
+    "text": "Yes, bring an umbrella this evening -- rain is likely around 6pm."
+  },
+  "synthetic": true,
+  "system": "PLACEHOLDER: stage-4 synthesize system prompt not yet authored (Task 17.4).",
+  "user": "Intent: DECISION\nForecast 0: Hyderabad\n  current: CLOUDY, 29.0C (feels like 31.0), precip 20.0%, wind 10.0 km/h, at 2026-07-07T12:00:00+00:00\n  hourly[0]: CLOUDY, 28.0C (feels like n/a), precip 30.0%, wind n/a km/h, at 2026-07-07T15:00:00+00:00\n  hourly[1]: RAIN, 25.0C (feels like n/a), precip 80.0%, wind n/a km/h, at 2026-07-07T18:00:00+00:00\n  hourly[2]: CLOUDY, 23.0C (feels like n/a), precip 40.0%, wind n/a km/h, at 2026-07-07T21:00:00+00:00"
+}

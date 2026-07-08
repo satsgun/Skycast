@@ -1,0 +1,81 @@
+{
+  "forecasts": [
+    {
+      "current": {
+        "condition_code": "CLEAR",
+        "feels_like": null,
+        "precip_amount": null,
+        "precip_probability": null,
+        "temperature": 30.0,
+        "timestamp": "2026-07-07T12:00:00Z",
+        "wind_speed": null
+      },
+      "daily": null,
+      "hourly": null,
+      "location": {
+        "admin1": null,
+        "admin2": null,
+        "country": "United States",
+        "country_code": "US",
+        "id": "in-memory:austin-us",
+        "latitude": 30.2672,
+        "longitude": -97.7431,
+        "name": "Austin",
+        "population": null,
+        "timezone": "America/Chicago"
+      },
+      "units": {
+        "precip_amount": "mm",
+        "precip_probability": "percent",
+        "temperature": "celsius",
+        "wind_speed": "kmh"
+      }
+    },
+    {
+      "current": {
+        "condition_code": "CLEAR",
+        "feels_like": null,
+        "precip_amount": null,
+        "precip_probability": null,
+        "temperature": 34.0,
+        "timestamp": "2026-07-07T12:00:00Z",
+        "wind_speed": null
+      },
+      "daily": null,
+      "hourly": null,
+      "location": {
+        "admin1": null,
+        "admin2": null,
+        "country": "United States",
+        "country_code": "US",
+        "id": "in-memory:dallas-us",
+        "latitude": 32.7767,
+        "longitude": -96.797,
+        "name": "Dallas",
+        "population": null,
+        "timezone": "America/Chicago"
+      },
+      "units": {
+        "precip_amount": "mm",
+        "precip_probability": "percent",
+        "temperature": "celsius",
+        "wind_speed": "kmh"
+      }
+    }
+  ],
+  "intent": "COMPARISON",
+  "name": "comparison",
+  "response": {
+    "highlight": {
+      "forecast_index": 1,
+      "locator": {
+        "block": "current",
+        "index": null
+      }
+    },
+    "text": "Dallas is warmer than Austin right now, by about 4 degrees."
+  },
+  "synthetic": true,
+  "system": "PLACEHOLDER: stage-4 synthesize system prompt not yet authored (Task 17.4).",
+  "user": "Intent: COMPARISON\nForecast 0: Austin\n  current: CLEAR, 30.0C (feels like n/a), precip n/a%, wind n/a km/h, at 2026-07-07T12:00:00+00:00\nForecast 1: Dallas\n  current: CLEAR, 34.0C (feels like n/a), precip n/a%, wind n/a km/h, at 2026-07-07T12:00:00+00:00"
+}

@@ -1,0 +1,44 @@
+{
+  "forecasts": [
+    {
+      "current": {
+        "condition_code": "CLOUDY",
+        "feels_like": null,
+        "precip_amount": null,
+        "precip_probability": null,
+        "temperature": 18.0,
+        "timestamp": "2026-07-07T12:00:00Z",
+        "wind_speed": null
+      },
+      "daily": null,
+      "hourly": null,
+      "location": {
+        "admin1": null,
+        "admin2": null,
+        "country": "United States",
+        "country_code": "US",
+        "id": "in-memory:seattle-us",
+        "latitude": 47.6062,
+        "longitude": -122.3321,
+        "name": "Seattle",
+        "population": null,
+        "timezone": "America/Los_Angeles"
+      },
+      "units": {
+        "precip_amount": "mm",
+        "precip_probability": "percent",
+        "temperature": "celsius",
+        "wind_speed": "kmh"
+      }
+    }
+  ],
+  "intent": "CONDITIONS",
+  "name": "current_conditions",
+  "response": {
+    "highlight": null,
+    "text": "It's cloudy and 18\u00b0C in Seattle right now."
+  },
+  "synthetic": true,
+  "system": "PLACEHOLDER: stage-4 synthesize system prompt not yet authored (Task 17.4).",
+  "user": "Intent: CONDITIONS\nForecast 0: Seattle\n  current: CLOUDY, 18.0C (feels like n/a), precip n/a%, wind n/a km/h, at 2026-07-07T12:00:00+00:00"
+}
