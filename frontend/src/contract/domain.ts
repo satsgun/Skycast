@@ -1,4 +1,4 @@
-export type ConditionCode = string; // refined into a real union by F1.3
+import type { ConditionCode } from "./conditionCodes";
 
 export interface Location {
   id: string;
