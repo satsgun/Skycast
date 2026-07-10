@@ -36,10 +36,10 @@ SkyCast/
 │   ├── pyproject.toml
 │   ├── src/skycast/    # src-layout package (main.py has only /health today)
 │   └── tests/          # pytest
-└── frontend/            # TypeScript frontend (plain TS, no framework yet)
+└── frontend/            # React + TypeScript, built with Vite
     ├── package.json
-    ├── src/            # index.ts is a placeholder today
-    └── tests/          # Vitest
+    ├── src/            # App.tsx is a placeholder today -- no rendering yet (F2/F3)
+    └── tests/          # Vitest + Testing Library
 ```
 
 ## Working method: tests first

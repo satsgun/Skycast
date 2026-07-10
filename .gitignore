@@ -13,6 +13,7 @@ htmlcov/
 node_modules/
 dist/
 coverage/
+*.local
 
 # Editor
 .vscode/
