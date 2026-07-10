@@ -1,27 +1,33 @@
 """Shared conformance suite for every LLMClient implementation (Task 20.1).
 
-Parametrized over one harness per vendor client -- currently just
-AnthropicLLMClient. Tasks 20.2/20.3 append their own harness to
-_HARNESSES as OpenAILLMClient/GeminiLLMClient are built; the test bodies
-below never change, since they only ever go through the Harness protocol,
-never a vendor SDK type directly. This is what actually proves "three
+Parametrized over one harness per vendor client -- currently
+AnthropicLLMClient and OpenAILLMClient. Task 20.3 appends its own harness
+to _HARNESSES as GeminiLLMClient is built; the test bodies below never
+change, since they only ever go through the Harness protocol, never a
+vendor SDK type directly. This is what actually proves "three
 implementations of one interface" rather than leaving it an unverified
 claim.
 """
 
 import asyncio
+import json
 import logging
 from typing import Any, Protocol
 
 import httpx
 import pytest
-from anthropic import APIConnectionError
+from anthropic import APIConnectionError as AnthropicAPIConnectionError
 from anthropic.types import Message, ToolUseBlock, Usage
+from openai import APIConnectionError as OpenAIAPIConnectionError
+from openai import AsyncOpenAI, OpenAIError
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice
 from pydantic import BaseModel
 
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.client import LLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
+from skycast.llm.openai_client import OpenAILLMClient
 
 _TOOL_NAME = "emit_canned"
 
@@ -106,7 +112,7 @@ class _AnthropicHarness:
 
     def transport_error(self) -> Exception:
         request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
-        return APIConnectionError(request=request)
+        return AnthropicAPIConnectionError(request=request)
 
     def unexpected_error(self) -> Exception:
         return RuntimeError("boom")
@@ -121,7 +127,73 @@ class _AnthropicHarness:
         return len(client._client.messages.calls)
 
 
-_HARNESSES: list[Harness] = [_AnthropicHarness()]
+class _FakeCompletions:
+    def __init__(self, responses: list) -> None:
+        self._responses = list(responses)
+        self.calls: list[dict] = []
+
+    async def parse(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        response = self._responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class _FakeChat:
+    def __init__(self, responses: list) -> None:
+        self.completions = _FakeCompletions(responses)
+
+
+def _chat_completion(data: dict) -> ChatCompletion:
+    message = ChatCompletionMessage(role="assistant", content=json.dumps(data))
+    choice = Choice(finish_reason="stop", index=0, message=message)
+    return ChatCompletion(
+        id="chatcmpl_1", choices=[choice], created=1, model="gpt-5", object="chat.completion"
+    )
+
+
+class _OpenAIHarness:
+    def build(self, responses: list) -> LLMClient:
+        real = AsyncOpenAI(api_key="test-key")
+        real.chat = _FakeChat(responses)
+        return OpenAILLMClient(model="gpt-5", api_key="test-key", client=real)
+
+    def build_with_credential(
+        self, monkeypatch: pytest.MonkeyPatch, secret: str, responses: list
+    ) -> LLMClient:
+        # OpenAILLMClient takes api_key explicitly (not ambient, unlike
+        # Anthropic's env-var convention), so no env var is needed here --
+        # `monkeypatch` is accepted only to satisfy the Harness protocol.
+        real = AsyncOpenAI(api_key=secret)
+        real.chat = _FakeChat(responses)
+        return OpenAILLMClient(model="gpt-5", api_key=secret, client=real)
+
+    def valid_response(self, data: dict) -> object:
+        return _chat_completion(data)
+
+    def invalid_response(self) -> object:
+        return _chat_completion({"wrong_field": "oops"})
+
+    def transport_error(self) -> Exception:
+        request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+        return OpenAIAPIConnectionError(request=request)
+
+    def unexpected_error(self) -> Exception:
+        return RuntimeError("boom")
+
+    def missing_credentials_error(self) -> Exception:
+        return OpenAIError(
+            "Missing credentials. Please pass an `api_key`, `workload_identity`, "
+            "`admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` "
+            "environment variable."
+        )
+
+    def call_count(self, client: LLMClient) -> int:
+        return len(client._client.chat.completions.calls)
+
+
+_HARNESSES: list[Harness] = [_AnthropicHarness(), _OpenAIHarness()]
 
 
 @pytest.fixture(params=_HARNESSES, ids=lambda h: type(h).__name__)
