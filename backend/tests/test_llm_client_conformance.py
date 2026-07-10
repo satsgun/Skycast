@@ -1,10 +1,9 @@
 """Shared conformance suite for every LLMClient implementation (Task 20.1).
 
-Parametrized over one harness per vendor client -- currently
-AnthropicLLMClient and OpenAILLMClient. Task 20.3 appends its own harness
-to _HARNESSES as GeminiLLMClient is built; the test bodies below never
-change, since they only ever go through the Harness protocol, never a
-vendor SDK type directly. This is what actually proves "three
+Parametrized over one harness per vendor client: AnthropicLLMClient,
+OpenAILLMClient, and GeminiLLMClient. The test bodies below never change
+per vendor, since they only ever go through the Harness protocol, never
+a vendor SDK type directly. This is what actually proves "three
 implementations of one interface" rather than leaving it an unverified
 claim.
 """
@@ -18,6 +17,8 @@ import httpx
 import pytest
 from anthropic import APIConnectionError as AnthropicAPIConnectionError
 from anthropic.types import Message, ToolUseBlock, Usage
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 from openai import APIConnectionError as OpenAIAPIConnectionError
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
@@ -27,6 +28,7 @@ from pydantic import BaseModel
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.client import LLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
+from skycast.llm.gemini_client import GeminiLLMClient
 from skycast.llm.openai_client import OpenAILLMClient
 
 _TOOL_NAME = "emit_canned"
@@ -193,7 +195,72 @@ class _OpenAIHarness:
         return len(client._client.chat.completions.calls)
 
 
-_HARNESSES: list[Harness] = [_AnthropicHarness(), _OpenAIHarness()]
+class _FakeGeminiModels:
+    def __init__(self, responses: list) -> None:
+        self._responses = list(responses)
+        self.calls: list[dict] = []
+
+    async def generate_content(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        response = self._responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+class _FakeGeminiAio:
+    def __init__(self, responses: list) -> None:
+        self.models = _FakeGeminiModels(responses)
+
+
+class _FakeGeminiClient:
+    def __init__(self, responses: list) -> None:
+        self.aio = _FakeGeminiAio(responses)
+
+
+def _gemini_response(data: dict) -> genai_types.GenerateContentResponse:
+    part = genai_types.Part(text=json.dumps(data))
+    content = genai_types.Content(parts=[part], role="model")
+    candidate = genai_types.Candidate(content=content, finish_reason="STOP")
+    return genai_types.GenerateContentResponse(candidates=[candidate])
+
+
+class _GeminiHarness:
+    def build(self, responses: list) -> LLMClient:
+        fake = _FakeGeminiClient(responses)
+        return GeminiLLMClient(model="gemini-2.5-flash", api_key="test-key", client=fake)
+
+    def build_with_credential(
+        self, monkeypatch: pytest.MonkeyPatch, secret: str, responses: list
+    ) -> LLMClient:
+        # GeminiLLMClient takes api_key explicitly (not ambient), so no
+        # env var is needed here -- `monkeypatch` is accepted only to
+        # satisfy the Harness protocol.
+        fake = _FakeGeminiClient(responses)
+        return GeminiLLMClient(model="gemini-2.5-flash", api_key=secret, client=fake)
+
+    def valid_response(self, data: dict) -> object:
+        return _gemini_response(data)
+
+    def invalid_response(self) -> object:
+        return _gemini_response({"wrong_field": "oops"})
+
+    def transport_error(self) -> Exception:
+        return genai_errors.APIError(500, {"error": {"message": "boom", "status": "INTERNAL"}})
+
+    def unexpected_error(self) -> Exception:
+        return RuntimeError("boom")
+
+    def missing_credentials_error(self) -> Exception:
+        return genai_errors.ClientError(
+            401, {"error": {"message": "API key not valid", "status": "UNAUTHENTICATED"}}
+        )
+
+    def call_count(self, client: LLMClient) -> int:
+        return len(client._client.aio.models.calls)
+
+
+_HARNESSES: list[Harness] = [_AnthropicHarness(), _OpenAIHarness(), _GeminiHarness()]
 
 
 @pytest.fixture(params=_HARNESSES, ids=lambda h: type(h).__name__)
