@@ -22,3 +22,19 @@ cd frontend
 npm install
 npm test
 ```
+
+## Configuration
+
+The backend selects one LLM vendor per process via environment
+variables (no runtime routing between vendors).
+
+| Variable            | Required                        | Default      | Notes                                                    |
+| -------------------- | -------------------------------- | ------------- | ---------------------------------------------------------- |
+| `LLM_VENDOR`        | No                               | `anthropic`   | `anthropic`, `openai`, or `gemini`. Unknown values fail loudly at startup. |
+| `LLM_MODEL`         | No                               | per-vendor    | Model id/name for whichever vendor is selected.           |
+| `ANTHROPIC_API_KEY` | Only if `LLM_VENDOR=anthropic` (or unset) | —    | Read ambiently by the Anthropic SDK.                       |
+| `OPENAI_API_KEY`    | Only if `LLM_VENDOR=openai`      | —             |                                                            |
+| `GEMINI_API_KEY`    | Only if `LLM_VENDOR=gemini`      | —             |                                                            |
+
+Default `LLM_MODEL` per vendor: `anthropic` → `claude-haiku-4-5-20251001`,
+`openai` → `gpt-5-mini`, `gemini` → `gemini-2.5-flash`.

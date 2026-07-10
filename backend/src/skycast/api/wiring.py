@@ -8,11 +8,17 @@ import os
 
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.client import LLMClient
+from skycast.llm.gemini_client import GeminiLLMClient
+from skycast.llm.openai_client import OpenAILLMClient
 from skycast.providers.base import WeatherProvider
 from skycast.providers.in_memory import InMemoryProvider
 from skycast.providers.open_meteo.provider import OpenMeteoProvider
 
-_DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+_DEFAULT_MODELS = {
+    "anthropic": "claude-haiku-4-5-20251001",
+    "openai": "gpt-5-mini",
+    "gemini": "gemini-2.5-flash",
+}
 
 
 def build_provider_registry() -> dict[str, WeatherProvider]:
@@ -28,9 +34,30 @@ def build_provider_registry() -> dict[str, WeatherProvider]:
 
 
 def build_llm_client() -> LLMClient:
-    """ANTHROPIC_MODEL from env, same default the record_*_fixtures.py
-    scripts use. ANTHROPIC_API_KEY is read by the Anthropic SDK itself
-    (AnthropicLLMClient's own convention, Task 14.3) -- never handled here.
+    """LLM_VENDOR selects exactly one client, chosen once at process
+    startup (Task 20.4) -- no routing. Defaults to "anthropic" when
+    unset, preserving Task 18.6's original zero-config behavior.
+    LLM_MODEL is generic (not per-vendor-named) since only one vendor is
+    ever active in a process; falls back to a per-vendor default when
+    unset. ANTHROPIC_API_KEY is never read here -- the anthropic SDK
+    reads it ambiently inside AsyncAnthropic() (Task 14.3, unchanged).
+    OPENAI_API_KEY/GEMINI_API_KEY are read via os.environ[...] (not
+    .get()) so a missing key fails loudly here with a KeyError naming
+    the exact missing var, rather than falling through to the vendor
+    SDK's own generic ambient-credential error.
     """
-    model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
-    return AnthropicLLMClient(model=model)
+    vendor = os.environ.get("LLM_VENDOR", "anthropic")
+
+    if vendor == "anthropic":
+        model = os.environ.get("LLM_MODEL", _DEFAULT_MODELS["anthropic"])
+        return AnthropicLLMClient(model=model)
+    if vendor == "openai":
+        model = os.environ.get("LLM_MODEL", _DEFAULT_MODELS["openai"])
+        return OpenAILLMClient(model=model, api_key=os.environ["OPENAI_API_KEY"])
+    if vendor == "gemini":
+        model = os.environ.get("LLM_MODEL", _DEFAULT_MODELS["gemini"])
+        return GeminiLLMClient(model=model, api_key=os.environ["GEMINI_API_KEY"])
+
+    raise ValueError(
+        f"unknown LLM_VENDOR: {vendor!r} -- expected 'anthropic', 'openai', or 'gemini'"
+    )
