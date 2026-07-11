@@ -1,0 +1,58 @@
+.skycast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--skycast-space-3) var(--skycast-space-5);
+  font-family: var(--skycast-font-family);
+}
+
+.skycast-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--skycast-space-2);
+}
+
+.skycast-header__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--skycast-size-icon-badge);
+  height: var(--skycast-size-icon-badge);
+  border-radius: var(--skycast-radius-sm);
+  background: var(--skycast-color-accent-bg);
+  color: var(--skycast-color-accent);
+}
+
+.skycast-header__wordmark {
+  font-size: var(--skycast-font-size-lg);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-primary);
+}
+
+.skycast-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--skycast-space-3);
+}
+
+.skycast-header__location {
+  font-size: var(--skycast-font-size-sm);
+  color: var(--skycast-color-text-tertiary);
+}
+
+.skycast-header__settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--skycast-color-text-secondary);
+  font-size: var(--skycast-font-size-xl);
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .skycast-header {
+    padding: var(--skycast-space-2) var(--skycast-space-3);
+  }
+}

@@ -1,0 +1,41 @@
+.skycast-input-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--skycast-space-2);
+  padding: var(--skycast-space-2) var(--skycast-space-3);
+  background: var(--skycast-color-surface);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-default);
+  border-radius: var(--skycast-radius-md);
+}
+
+.skycast-input-bar__field {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: var(--skycast-font-family);
+  font-size: var(--skycast-font-size-base);
+  color: var(--skycast-color-text-primary);
+}
+
+.skycast-input-bar__field::placeholder {
+  color: var(--skycast-color-text-tertiary);
+}
+
+.skycast-input-bar__send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--skycast-size-icon-badge);
+  height: var(--skycast-size-icon-badge);
+  border: none;
+  border-radius: var(--skycast-radius-sm);
+  background: var(--skycast-color-accent-bg);
+  color: var(--skycast-color-accent);
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .skycast-input-bar {
+    padding: var(--skycast-space-1) var(--skycast-space-2);
+  }
+}

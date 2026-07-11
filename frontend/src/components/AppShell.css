@@ -1,0 +1,30 @@
+.skycast-app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--skycast-color-bg);
+  font-family: var(--skycast-font-family);
+  color: var(--skycast-color-text-primary);
+}
+
+.skycast-app-shell__conversation {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--skycast-space-4) var(--skycast-space-5);
+}
+
+.skycast-app-shell > .skycast-input-bar {
+  margin: var(--skycast-space-3) var(--skycast-space-5) var(--skycast-space-5);
+}
+
+@media (max-width: 600px) {
+  .skycast-app-shell__conversation {
+    padding: var(--skycast-space-3);
+  }
+
+  .skycast-app-shell > .skycast-input-bar {
+    margin: var(--skycast-space-2) var(--skycast-space-3) var(--skycast-space-3);
+  }
+}

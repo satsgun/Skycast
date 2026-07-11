@@ -63,6 +63,15 @@
   /* Motion -- durations only, not mockup-derived (mockups are static) */
   --skycast-motion-duration-fast: 150ms;
   --skycast-motion-duration-base: 250ms;
+
+  /*
+   * Breakpoints -- no mockup shows a responsive variant to derive this
+   * from; a conventional single mobile breakpoint. CSS custom
+   * properties can't be read inside @media conditions, so component
+   * stylesheets hardcode this same value in their `max-width` query --
+   * keep both in sync by hand if this changes.
+   */
+  --skycast-breakpoint-mobile: 600px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -73,4 +82,9 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+:focus-visible {
+  outline: 2px solid var(--skycast-color-accent);
+  outline-offset: 2px;
 }

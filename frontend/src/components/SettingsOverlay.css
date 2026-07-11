@@ -1,0 +1,58 @@
+.skycast-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 35%);
+  transition: opacity var(--skycast-motion-duration-base) ease;
+}
+
+.skycast-settings-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - var(--skycast-space-6)));
+  max-height: calc(100vh - var(--skycast-space-6));
+  overflow-y: auto;
+  background: var(--skycast-color-surface);
+  border-radius: var(--skycast-radius-lg);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-subtle);
+  padding: var(--skycast-space-5);
+  font-family: var(--skycast-font-family);
+  transition:
+    opacity var(--skycast-motion-duration-fast) ease,
+    transform var(--skycast-motion-duration-fast) ease;
+}
+
+.skycast-settings-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--skycast-space-4);
+}
+
+.skycast-settings-panel__header h2 {
+  font-size: var(--skycast-font-size-2xl);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-primary);
+  margin: 0;
+}
+
+.skycast-settings-panel__close {
+  border: none;
+  background: transparent;
+  color: var(--skycast-color-text-secondary);
+  font-size: var(--skycast-font-size-lg);
+  cursor: pointer;
+}
+
+.skycast-settings-panel__placeholder {
+  color: var(--skycast-color-text-secondary);
+  font-size: var(--skycast-font-size-base);
+}
+
+@media (max-width: 600px) {
+  .skycast-settings-panel {
+    width: calc(100vw - var(--skycast-space-4));
+    padding: var(--skycast-space-4);
+  }
+}

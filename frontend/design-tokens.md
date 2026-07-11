@@ -86,7 +86,25 @@ Mockups are static images -- no durations to derive. The
 view-independent boilerplate. `--skycast-motion-duration-fast` (150ms)
 and `--skycast-motion-duration-base` (250ms) are placeholder tokens
 for F3.1+ to consume; they are conventional defaults, not
-mockup-derived.
+mockup-derived. First real use: F3.1's settings overlay
+backdrop/panel transition.
+
+## Breakpoints (added in F3.1)
+
+`--skycast-breakpoint-mobile` (600px): no mockup shows a responsive
+variant to derive this from -- a conventional single mobile
+breakpoint, not mockup-derived. CSS custom properties can't be read
+inside `@media` conditions, so component stylesheets hardcode this
+same `600px` value in their own `max-width` queries; keep both in
+sync by hand if this value ever changes.
+
+## Focus visibility (added in F3.1)
+
+A global `:focus-visible` rule in `tokens.css` (2px solid
+`--skycast-color-accent` outline, 2px offset) is the single source of
+truth for the "visible keyboard focus" accessibility floor required
+across all F3.x views, rather than duplicating the rule per
+component.
 
 ## Icon source
 
