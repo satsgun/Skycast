@@ -96,6 +96,33 @@ describe("AppShell", () => {
     daily: null,
   };
 
+  const MINIMAL_CANDIDATES = [
+    {
+      id: "1",
+      name: "Springfield",
+      latitude: 39.8,
+      longitude: -89.6,
+      country: "USA",
+      country_code: "US",
+      admin1: "Illinois",
+      admin2: null,
+      population: 114_000,
+      timezone: "America/Chicago",
+    },
+    {
+      id: "2",
+      name: "Springfield",
+      latitude: 37.2,
+      longitude: -93.3,
+      country: "USA",
+      country_code: "US",
+      admin1: "Missouri",
+      admin2: null,
+      population: 169_000,
+      timezone: "America/Chicago",
+    },
+  ];
+
   it.each([
     { type: "thinking", query: "will it rain", steps: [] },
     {
@@ -108,7 +135,7 @@ describe("AppShell", () => {
       isStale: false,
       followUpChips: [],
     },
-    { type: "clarify", query: "will it rain", candidates: [] },
+    { type: "clarify", query: "will it rain", candidates: MINIMAL_CANDIDATES },
     {
       type: "error",
       query: "will it rain",
@@ -164,5 +191,20 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("button", { name: "What about tomorrow?" }),
     ).toBeTruthy();
+  });
+
+  it("renders clarify candidates through the full tree and selects one on tap", () => {
+    const query = makeQuery({
+      type: "clarify",
+      query: "will it rain",
+      candidates: MINIMAL_CANDIDATES,
+    });
+    render(<AppShell query={query} settings={SETTINGS} />);
+
+    expect(screen.getByText(/Springfields/)).toBeTruthy();
+    const buttons = screen.getAllByRole("button", { name: /Springfield/ });
+    fireEvent.click(buttons[1]);
+
+    expect(query.selectCandidate).toHaveBeenCalledWith(MINIMAL_CANDIDATES[1]);
   });
 });

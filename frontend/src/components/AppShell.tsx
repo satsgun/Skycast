@@ -1,3 +1,4 @@
+import type { Location } from "../contract";
 import type { MainState } from "../state/machine";
 import type { UseQueryResult } from "../state/useQuery";
 import type {
@@ -5,6 +6,7 @@ import type {
   UseSettingsStoreResult,
 } from "../state/settingsStore";
 import { AnswerView } from "./AnswerView";
+import { ClarifyView } from "./ClarifyView";
 import { EmptyState } from "./EmptyState";
 import { Header } from "./Header";
 import { InputBar } from "./InputBar";
@@ -20,14 +22,15 @@ export interface AppShellProps {
 interface ConversationContext {
   units: UnitsSettings;
   onSubmit: (text: string) => void;
+  onSelectCandidate: (candidate: Location) => void;
 }
 
 /**
  * Minimal, mockup-unstyled placeholder per main-state type -- just
- * enough to prove the state wiring works end-to-end. F3.5-F3.7 each
- * replace their own case here with the real, mockup-accurate view.
- * "empty" is handled separately by AppShell -- it's the only state
- * with a real view (EmptyState, F3.2) and needs extra props.
+ * enough to prove the state wiring works end-to-end. F3.7 replaces
+ * its own case here with the real, mockup-accurate view. "empty" is
+ * handled separately by AppShell -- it's the only state with a real
+ * view (EmptyState, F3.2) and needs extra props.
  */
 function renderConversation(
   main: Exclude<MainState, { type: "empty" }>,
@@ -55,7 +58,15 @@ function renderConversation(
         </div>
       );
     case "clarify":
-      return <p>{main.query}</p>;
+      return (
+        <div>
+          <p>{main.query}</p>
+          <ClarifyView
+            candidates={main.candidates}
+            onSelect={context.onSelectCandidate}
+          />
+        </div>
+      );
     case "error":
       return (
         <div>
@@ -67,7 +78,7 @@ function renderConversation(
 }
 
 export function AppShell({ query, settings }: AppShellProps) {
-  const { state, dispatch, submitQuery } = query;
+  const { state, dispatch, submitQuery, selectCandidate } = query;
 
   function openSettings(): void {
     dispatch({ type: "OPEN_SETTINGS" });
@@ -90,6 +101,7 @@ export function AppShell({ query, settings }: AppShellProps) {
           renderConversation(state.main, {
             units: settings.settings.units,
             onSubmit: submitQuery,
+            onSelectCandidate: selectCandidate,
           })
         )}
       </main>
