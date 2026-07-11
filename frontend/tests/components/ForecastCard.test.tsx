@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ForecastCard } from "../../src/components/ForecastCard";
 import type { Forecast, ReadingLocator } from "../../src/contract";
@@ -109,6 +109,8 @@ describe("ForecastCard", () => {
         forecast={forecast({})}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -121,6 +123,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ current: CURRENT })}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -137,6 +141,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ current: CURRENT })}
         units={{ ...UNITS, temperature: "F" }}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -149,6 +155,8 @@ describe("ForecastCard", () => {
         forecast={forecast({})}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -161,6 +169,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ hourly: HOURLY })}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -174,6 +184,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ hourly: HOURLY, daily: DAILY })}
         units={{ ...UNITS, temperature: "F" }}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -189,6 +201,8 @@ describe("ForecastCard", () => {
         })}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -204,6 +218,8 @@ describe("ForecastCard", () => {
         })}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -217,6 +233,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ daily: DAILY })}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -233,6 +251,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ current: CURRENT })}
         units={UNITS}
         highlightLocator={locator}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -247,6 +267,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ hourly: HOURLY })}
         units={UNITS}
         highlightLocator={locator}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -262,6 +284,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ daily: DAILY })}
         units={UNITS}
         highlightLocator={locator}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -276,6 +300,8 @@ describe("ForecastCard", () => {
         forecast={forecast({ current: CURRENT, daily: DAILY })}
         units={UNITS}
         highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={() => {}}
       />,
     );
 
@@ -285,5 +311,39 @@ describe("ForecastCard", () => {
     for (const cell of screen.getAllByTestId("forecast-daily-cell")) {
       expect(cell.className).not.toContain("active");
     }
+  });
+
+  it('renders "Set as default" and calls onSetDefault when not the default', () => {
+    const onSetDefault = vi.fn();
+    render(
+      <ForecastCard
+        forecast={forecast({})}
+        units={UNITS}
+        highlightLocator={null}
+        isDefaultLocation={false}
+        onSetDefault={onSetDefault}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /set as default/i }));
+
+    expect(onSetDefault).toHaveBeenCalledOnce();
+  });
+
+  it('renders a plain "Default location" label, no button, when already the default', () => {
+    render(
+      <ForecastCard
+        forecast={forecast({})}
+        units={UNITS}
+        highlightLocator={null}
+        isDefaultLocation={true}
+        onSetDefault={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Default location")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /set as default/i }),
+    ).toBeNull();
   });
 });

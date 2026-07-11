@@ -1,14 +1,21 @@
 import { useEffect, useRef } from "react";
 import type { KeyboardEvent } from "react";
 
+import type { UseSettingsStoreResult } from "../state/settingsStore";
+import { SettingsPanel } from "./SettingsPanel";
 import "./SettingsOverlay.css";
 
 export interface SettingsOverlayProps {
   isOpen: boolean;
   onClose: () => void;
+  settings: UseSettingsStoreResult;
 }
 
-export function SettingsOverlay({ isOpen, onClose }: SettingsOverlayProps) {
+export function SettingsOverlay({
+  isOpen,
+  onClose,
+  settings,
+}: SettingsOverlayProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -51,9 +58,11 @@ export function SettingsOverlay({ isOpen, onClose }: SettingsOverlayProps) {
             ✕
           </button>
         </div>
-        <p className="skycast-settings-panel__placeholder">
-          Settings coming soon.
-        </p>
+        <SettingsPanel
+          settings={settings.settings}
+          onSetUnits={settings.setUnits}
+          onSetDefaultLocation={settings.setDefaultLocation}
+        />
       </div>
     </>
   );

@@ -74,6 +74,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -92,6 +94,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -106,6 +110,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -121,6 +127,8 @@ describe("AnswerView", () => {
         followUpChips={["What about tomorrow?", "What about next week?"]}
         units={UNITS}
         onSubmit={onSubmit}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -144,6 +152,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -175,6 +185,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -208,6 +220,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -228,6 +242,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -262,6 +278,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -283,6 +301,8 @@ describe("AnswerView", () => {
         followUpChips={[]}
         units={UNITS}
         onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
       />,
     );
 
@@ -293,5 +313,49 @@ describe("AnswerView", () => {
     const conclusionIndex = text.indexOf("Saturday stays dry and sunny.");
     const bangaloreIndex = text.indexOf("Bangalore");
     expect(bangaloreIndex).toBeGreaterThan(conclusionIndex);
+  });
+
+  it("marks only the forecast matching defaultLocation as the default", () => {
+    const forecast1 = answer({}).card.forecasts[0];
+    const forecast2 = { ...forecast1, location: LOCATION_2 };
+    render(
+      <AnswerView
+        answer={answer({
+          card: { forecasts: [forecast1, forecast2], highlight: null },
+        })}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+        defaultLocation={LOCATION_2}
+        onSetDefaultLocation={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Set as default")).toBeTruthy();
+    expect(screen.getByText("Default location")).toBeTruthy();
+  });
+
+  it("calls onSetDefaultLocation with that forecast's own location when tapped", () => {
+    const onSetDefaultLocation = vi.fn();
+    const forecast1 = answer({}).card.forecasts[0];
+    const forecast2 = { ...forecast1, location: LOCATION_2 };
+    render(
+      <AnswerView
+        answer={answer({
+          card: { forecasts: [forecast1, forecast2], highlight: null },
+        })}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={onSetDefaultLocation}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByText("Set as default")[1]);
+
+    expect(onSetDefaultLocation).toHaveBeenCalledWith(LOCATION_2);
   });
 });

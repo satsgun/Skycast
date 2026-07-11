@@ -1,4 +1,9 @@
-import type { AnswerCard, AnswerPayload, ReadingLocator } from "../contract";
+import type {
+  AnswerCard,
+  AnswerPayload,
+  Location,
+  ReadingLocator,
+} from "../contract";
 import type { UnitsSettings } from "../state/settingsStore";
 import { ForecastCard } from "./ForecastCard";
 import "./AnswerView.css";
@@ -9,6 +14,8 @@ export interface AnswerViewProps {
   followUpChips: string[];
   units: UnitsSettings;
   onSubmit: (text: string) => void;
+  defaultLocation: Location | null;
+  onSetDefaultLocation: (location: Location) => void;
 }
 
 function resolveHighlightLocator(
@@ -27,6 +34,8 @@ export function AnswerView({
   followUpChips,
   units,
   onSubmit,
+  defaultLocation,
+  onSetDefaultLocation,
 }: AnswerViewProps) {
   return (
     <div className="skycast-answer-view">
@@ -41,6 +50,8 @@ export function AnswerView({
             forecast={forecast}
             units={units}
             highlightLocator={resolveHighlightLocator(answer.card, index)}
+            isDefaultLocation={forecast.location.id === defaultLocation?.id}
+            onSetDefault={() => onSetDefaultLocation(forecast.location)}
           />
         ))}
       </div>

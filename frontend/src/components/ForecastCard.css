@@ -4,11 +4,34 @@
   gap: var(--skycast-space-4);
 }
 
+.skycast-forecast-card__location-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--skycast-space-2);
+}
+
 .skycast-forecast-card__location {
   font-size: var(--skycast-font-size-md);
   font-weight: var(--skycast-font-weight-medium);
   color: var(--skycast-color-text-secondary);
   margin: 0;
+}
+
+.skycast-forecast-card__default-label {
+  font-size: var(--skycast-font-size-xs);
+  color: var(--skycast-color-text-tertiary);
+}
+
+.skycast-forecast-card__default-action {
+  border: var(--skycast-border-width) solid var(--skycast-color-border-default);
+  border-radius: var(--skycast-radius-sm);
+  background: var(--skycast-color-surface);
+  color: var(--skycast-color-text-on-surface-action);
+  font-family: var(--skycast-font-family);
+  font-size: var(--skycast-font-size-xs);
+  padding: var(--skycast-space-1) var(--skycast-space-2);
+  cursor: pointer;
 }
 
 .skycast-forecast-card__current {

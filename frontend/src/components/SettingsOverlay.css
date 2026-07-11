@@ -45,11 +45,6 @@
   cursor: pointer;
 }
 
-.skycast-settings-panel__placeholder {
-  color: var(--skycast-color-text-secondary);
-  font-size: var(--skycast-font-size-base);
-}
-
 @media (max-width: 600px) {
   .skycast-settings-panel {
     width: calc(100vw - var(--skycast-space-4));

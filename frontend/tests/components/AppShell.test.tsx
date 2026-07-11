@@ -223,4 +223,34 @@ describe("AppShell", () => {
 
     expect(query.submitQuery).toHaveBeenCalledWith("will it rain");
   });
+
+  it("renders the settings panel through the full tree and applies a unit change", () => {
+    const query = makeQuery({ type: "empty" }, true);
+    render(<AppShell query={query} settings={SETTINGS} />);
+
+    expect(screen.getByText("Not set")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "°F" }));
+
+    expect(SETTINGS.setUnits).toHaveBeenCalledWith({ temperature: "F" });
+  });
+
+  it("renders a set-as-default action on the answer view through the full tree", () => {
+    const query = makeQuery({
+      type: "answer",
+      query: "will it rain",
+      answer: {
+        text: "Saturday stays dry and sunny.",
+        card: { forecasts: [MINIMAL_FORECAST], highlight: null },
+      },
+      isStale: false,
+      followUpChips: [],
+    });
+    render(<AppShell query={query} settings={SETTINGS} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /set as default/i }));
+
+    expect(SETTINGS.setDefaultLocation).toHaveBeenCalledWith(
+      MINIMAL_FORECAST.location,
+    );
+  });
 });

@@ -1,0 +1,57 @@
+.skycast-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--skycast-space-5);
+}
+
+.skycast-settings-body__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--skycast-space-3);
+}
+
+.skycast-settings-body__group-label {
+  font-size: var(--skycast-font-size-sm);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-tertiary);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.skycast-settings-body__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--skycast-space-3);
+}
+
+.skycast-settings-body__row-label {
+  font-size: var(--skycast-font-size-md);
+  color: var(--skycast-color-text-primary);
+  margin: 0;
+}
+
+.skycast-settings-body__row-sublabel {
+  font-size: var(--skycast-font-size-sm);
+  color: var(--skycast-color-text-muted);
+  margin: 0;
+}
+
+.skycast-settings-body__location-value {
+  display: flex;
+  align-items: center;
+  gap: var(--skycast-space-2);
+  font-size: var(--skycast-font-size-base);
+  color: var(--skycast-color-text-on-surface-action);
+}
+
+.skycast-settings-body__clear {
+  border: var(--skycast-border-width) solid var(--skycast-color-border-default);
+  border-radius: var(--skycast-radius-sm);
+  background: var(--skycast-color-surface);
+  color: var(--skycast-color-text-on-surface-action);
+  font-family: var(--skycast-font-family);
+  font-size: var(--skycast-font-size-sm);
+  padding: var(--skycast-space-1) var(--skycast-space-2);
+  cursor: pointer;
+}

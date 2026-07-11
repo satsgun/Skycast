@@ -12,6 +12,8 @@ export interface ForecastCardProps {
   forecast: Forecast;
   units: UnitsSettings;
   highlightLocator: ReadingLocator | null;
+  isDefaultLocation: boolean;
+  onSetDefault: () => void;
 }
 
 // Strip cells show a bare degree (matching 02-multiday.svg's daily
@@ -33,12 +35,29 @@ export function ForecastCard({
   forecast,
   units,
   highlightLocator,
+  isDefaultLocation,
+  onSetDefault,
 }: ForecastCardProps) {
   const { location, current, hourly, daily } = forecast;
 
   return (
     <div className="skycast-forecast-card">
-      <p className="skycast-forecast-card__location">{location.name}</p>
+      <div className="skycast-forecast-card__location-row">
+        <p className="skycast-forecast-card__location">{location.name}</p>
+        {isDefaultLocation ? (
+          <span className="skycast-forecast-card__default-label">
+            Default location
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="skycast-forecast-card__default-action"
+            onClick={onSetDefault}
+          >
+            Set as default
+          </button>
+        )}
+      </div>
 
       {current !== null && (
         <div

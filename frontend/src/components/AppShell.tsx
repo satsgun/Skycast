@@ -26,6 +26,8 @@ interface ConversationContext {
   onSelectCandidate: (candidate: Location) => void;
   onShowCached: () => void;
   onOpenSettings: () => void;
+  defaultLocation: Location | null;
+  onSetDefaultLocation: (location: Location) => void;
 }
 
 /**
@@ -57,6 +59,8 @@ function renderConversation(
             followUpChips={main.followUpChips}
             units={context.units}
             onSubmit={context.onSubmit}
+            defaultLocation={context.defaultLocation}
+            onSetDefaultLocation={context.onSetDefaultLocation}
           />
         </div>
       );
@@ -104,7 +108,6 @@ export function AppShell({ query, settings }: AppShellProps) {
           <EmptyState
             hasDefaultLocation={settings.settings.defaultLocation !== null}
             onSubmit={submitQuery}
-            onOpenSettings={openSettings}
           />
         ) : (
           renderConversation(state.main, {
@@ -113,6 +116,8 @@ export function AppShell({ query, settings }: AppShellProps) {
             onSelectCandidate: selectCandidate,
             onShowCached: showCached,
             onOpenSettings: openSettings,
+            defaultLocation: settings.settings.defaultLocation,
+            onSetDefaultLocation: settings.setDefaultLocation,
           })
         )}
       </main>
@@ -120,6 +125,7 @@ export function AppShell({ query, settings }: AppShellProps) {
       <SettingsOverlay
         isOpen={state.isSettingsOpen}
         onClose={() => dispatch({ type: "CLOSE_SETTINGS" })}
+        settings={settings}
       />
     </div>
   );

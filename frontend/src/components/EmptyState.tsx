@@ -6,22 +6,14 @@ const STARTER_CHIP_ICONS = ["👕", "☂", "📅", "⇄"];
 export interface EmptyStateProps {
   hasDefaultLocation: boolean;
   onSubmit: (text: string) => void;
-  onOpenSettings: () => void;
 }
 
-export function EmptyState({
-  hasDefaultLocation,
-  onSubmit,
-  onOpenSettings,
-}: EmptyStateProps) {
+export function EmptyState({ hasDefaultLocation, onSubmit }: EmptyStateProps) {
   return (
     <div className="skycast-empty-state">
       {!hasDefaultLocation && (
         <div className="skycast-empty-state__location-prompt">
-          <p>Set a default location to see current conditions here.</p>
-          <button type="button" onClick={onOpenSettings}>
-            Choose a default location
-          </button>
+          <p>Ask about a place to see current conditions here.</p>
         </div>
       )}
       <p className="skycast-empty-state__heading">

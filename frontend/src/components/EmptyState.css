@@ -16,15 +16,6 @@
   font-size: var(--skycast-font-size-base);
 }
 
-.skycast-empty-state__location-prompt button {
-  border: var(--skycast-border-width) solid var(--skycast-color-border-default);
-  border-radius: var(--skycast-radius-sm);
-  background: var(--skycast-color-surface);
-  color: var(--skycast-color-text-on-surface-action);
-  padding: var(--skycast-space-2) var(--skycast-space-3);
-  cursor: pointer;
-}
-
 .skycast-empty-state__heading {
   font-size: var(--skycast-font-size-xl);
   color: var(--skycast-color-text-primary);
