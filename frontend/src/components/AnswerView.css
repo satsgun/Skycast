@@ -50,6 +50,16 @@
   cursor: pointer;
 }
 
+.skycast-answer-view__attribution {
+  font-size: var(--skycast-font-size-xs);
+  color: var(--skycast-color-text-tertiary);
+  margin: 0;
+}
+
+.skycast-answer-view__attribution a {
+  color: inherit;
+}
+
 @media (max-width: 600px) {
   .skycast-answer-view__conclusion {
     font-size: var(--skycast-font-size-3xl);

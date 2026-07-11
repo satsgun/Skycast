@@ -358,4 +358,39 @@ describe("AnswerView", () => {
 
     expect(onSetDefaultLocation).toHaveBeenCalledWith(LOCATION_2);
   });
+
+  it("renders an Open-Meteo attribution link", () => {
+    render(
+      <AnswerView
+        answer={answer({})}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Open-Meteo.com" });
+    expect(link.getAttribute("href")).toBe("https://open-meteo.com");
+  });
+
+  it("opens the attribution link in a new tab safely", () => {
+    render(
+      <AnswerView
+        answer={answer({})}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+        defaultLocation={null}
+        onSetDefaultLocation={vi.fn()}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Open-Meteo.com" });
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  });
 });

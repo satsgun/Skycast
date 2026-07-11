@@ -69,6 +69,16 @@ export function AnswerView({
           ))}
         </div>
       )}
+      <p className="skycast-answer-view__attribution">
+        Weather data by{" "}
+        <a
+          href="https://open-meteo.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open-Meteo.com
+        </a>
+      </p>
     </div>
   );
 }
