@@ -21,3 +21,16 @@ export function formatTime(
     .format(new Date(isoTimestamp))
     .replaceAll(NARROW_NO_BREAK_SPACE, " ");
 }
+
+// A pure calendar date (no time-of-day) is formatted with a fixed
+// UTC "clock" -- not the reading's location timezone -- so it always
+// reads back the same weekday embedded in the date string, regardless
+// of where the browser or the forecast location happen to be.
+const DAY_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  timeZone: "UTC",
+});
+
+export function formatDayLabel(isoDate: string): string {
+  return DAY_LABEL_FORMATTER.format(new Date(isoDate));
+}

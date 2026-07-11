@@ -1,6 +1,10 @@
 import type { MainState } from "../state/machine";
 import type { UseQueryResult } from "../state/useQuery";
-import type { UseSettingsStoreResult } from "../state/settingsStore";
+import type {
+  UnitsSettings,
+  UseSettingsStoreResult,
+} from "../state/settingsStore";
+import { AnswerView } from "./AnswerView";
 import { EmptyState } from "./EmptyState";
 import { Header } from "./Header";
 import { InputBar } from "./InputBar";
@@ -13,14 +17,22 @@ export interface AppShellProps {
   settings: UseSettingsStoreResult;
 }
 
+interface ConversationContext {
+  units: UnitsSettings;
+  onSubmit: (text: string) => void;
+}
+
 /**
  * Minimal, mockup-unstyled placeholder per main-state type -- just
- * enough to prove the state wiring works end-to-end. F3.4-F3.7 each
+ * enough to prove the state wiring works end-to-end. F3.5-F3.7 each
  * replace their own case here with the real, mockup-accurate view.
  * "empty" is handled separately by AppShell -- it's the only state
  * with a real view (EmptyState, F3.2) and needs extra props.
  */
-function renderConversation(main: Exclude<MainState, { type: "empty" }>) {
+function renderConversation(
+  main: Exclude<MainState, { type: "empty" }>,
+  context: ConversationContext,
+) {
   switch (main.type) {
     case "thinking":
       return (
@@ -33,7 +45,13 @@ function renderConversation(main: Exclude<MainState, { type: "empty" }>) {
       return (
         <div>
           <p>{main.query}</p>
-          <p>{main.answer.text}</p>
+          <AnswerView
+            answer={main.answer}
+            isStale={main.isStale}
+            followUpChips={main.followUpChips}
+            units={context.units}
+            onSubmit={context.onSubmit}
+          />
         </div>
       );
     case "clarify":
@@ -69,7 +87,10 @@ export function AppShell({ query, settings }: AppShellProps) {
             onOpenSettings={openSettings}
           />
         ) : (
-          renderConversation(state.main)
+          renderConversation(state.main, {
+            units: settings.settings.units,
+            onSubmit: submitQuery,
+          })
         )}
       </main>
       <InputBar mainState={state.main} onSubmit={submitQuery} />

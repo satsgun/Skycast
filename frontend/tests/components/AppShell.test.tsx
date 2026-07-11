@@ -72,12 +72,39 @@ describe("AppShell", () => {
     expect(query.dispatch).toHaveBeenCalledWith({ type: "CLOSE_SETTINGS" });
   });
 
+  const MINIMAL_FORECAST = {
+    location: {
+      id: "1",
+      name: "Hyderabad",
+      latitude: 17.4,
+      longitude: 78.5,
+      country: "India",
+      country_code: "IN",
+      admin1: null,
+      admin2: null,
+      population: 1_000_000,
+      timezone: "UTC",
+    },
+    units: {
+      temperature: "celsius",
+      wind_speed: "kmh",
+      precip_amount: "mm",
+      precip_probability: "percent",
+    },
+    current: null,
+    hourly: null,
+    daily: null,
+  };
+
   it.each([
     { type: "thinking", query: "will it rain", steps: [] },
     {
       type: "answer",
       query: "will it rain",
-      answer: { text: "yes", card: { forecasts: [], highlight: null } },
+      answer: {
+        text: "yes",
+        card: { forecasts: [MINIMAL_FORECAST], highlight: null },
+      },
       isStale: false,
       followUpChips: [],
     },
@@ -117,5 +144,25 @@ describe("AppShell", () => {
     render(<AppShell query={query} settings={SETTINGS} />);
 
     expect(screen.getByText("Understood request")).toBeTruthy();
+  });
+
+  it("renders an answer through the full tree", () => {
+    const query = makeQuery({
+      type: "answer",
+      query: "will it rain",
+      answer: {
+        text: "Saturday stays dry and sunny.",
+        card: { forecasts: [MINIMAL_FORECAST], highlight: null },
+      },
+      isStale: false,
+      followUpChips: ["What about tomorrow?"],
+    });
+    render(<AppShell query={query} settings={SETTINGS} />);
+
+    expect(screen.getByText("Saturday stays dry and sunny.")).toBeTruthy();
+    expect(screen.getByText("Hyderabad")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "What about tomorrow?" }),
+    ).toBeTruthy();
   });
 });

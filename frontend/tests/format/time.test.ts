@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatTime } from "../../src/format/time";
+import { formatDayLabel, formatTime } from "../../src/format/time";
 
 describe("formatTime", () => {
   it("formats in 24h", () => {
@@ -33,5 +33,15 @@ describe("formatTime", () => {
   it("falls back gracefully when the timezone is omitted", () => {
     const result = formatTime("2026-07-10T15:45:00Z", "24h");
     expect(result).toMatch(/^\d{1,2}:\d{2}/);
+  });
+});
+
+describe("formatDayLabel", () => {
+  it("formats a date as a short weekday", () => {
+    expect(formatDayLabel("2026-07-10")).toBe("Fri");
+  });
+
+  it("reads the weekday from the date string itself, not a local timezone", () => {
+    expect(formatDayLabel("2026-07-12")).toBe("Sun");
   });
 });

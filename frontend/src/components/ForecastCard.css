@@ -1,0 +1,136 @@
+.skycast-forecast-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--skycast-space-4);
+}
+
+.skycast-forecast-card__location {
+  font-size: var(--skycast-font-size-md);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-secondary);
+  margin: 0;
+}
+
+.skycast-forecast-card__current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--skycast-space-1);
+  text-align: center;
+  padding: var(--skycast-space-4);
+  border-radius: var(--skycast-radius-md);
+}
+
+.skycast-forecast-card__current--active {
+  background: var(--skycast-color-accent-bg);
+}
+
+.skycast-forecast-card__current-icon {
+  font-size: var(--skycast-font-size-5xl);
+  width: 1em;
+  height: 1em;
+  color: var(--skycast-color-text-primary);
+}
+
+.skycast-forecast-card__current-temp {
+  font-size: var(--skycast-font-size-4xl);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-primary);
+  margin: 0;
+}
+
+.skycast-forecast-card__current-line {
+  font-size: var(--skycast-font-size-base);
+  color: var(--skycast-color-text-secondary);
+  margin: 0;
+}
+
+.skycast-forecast-card__current-stats {
+  font-size: var(--skycast-font-size-sm);
+  color: var(--skycast-color-text-tertiary);
+  margin: 0;
+}
+
+.skycast-forecast-card__hourly,
+.skycast-forecast-card__daily {
+  display: flex;
+  gap: var(--skycast-space-2);
+  overflow-x: auto;
+  padding-bottom: var(--skycast-space-1);
+}
+
+.skycast-forecast-card__hourly-cell,
+.skycast-forecast-card__daily-cell {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--skycast-space-1);
+  background: var(--skycast-color-surface);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-subtle);
+  border-radius: var(--skycast-radius-md);
+}
+
+.skycast-forecast-card__hourly-cell--active,
+.skycast-forecast-card__daily-cell--active {
+  background: var(--skycast-color-accent-bg);
+  border-color: var(--skycast-color-accent-border);
+}
+
+.skycast-forecast-card__cell-label {
+  font-size: var(--skycast-font-size-sm);
+  color: var(--skycast-color-text-secondary);
+  margin: 0;
+}
+
+.skycast-forecast-card__hourly-cell--active .skycast-forecast-card__cell-label,
+.skycast-forecast-card__daily-cell--active .skycast-forecast-card__cell-label {
+  color: var(--skycast-color-accent);
+}
+
+.skycast-forecast-card__cell-icon {
+  font-size: var(--skycast-font-size-3xl);
+  width: 1em;
+  height: 1em;
+  color: var(--skycast-color-text-primary);
+}
+
+.skycast-forecast-card__hourly-cell--active .skycast-forecast-card__cell-icon,
+.skycast-forecast-card__daily-cell--active .skycast-forecast-card__cell-icon {
+  color: var(--skycast-color-accent);
+}
+
+.skycast-forecast-card__cell-temp {
+  font-size: var(--skycast-font-size-base);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-primary);
+  margin: 0;
+}
+
+.skycast-forecast-card__hourly-cell--active .skycast-forecast-card__cell-temp,
+.skycast-forecast-card__daily-cell--active .skycast-forecast-card__cell-temp {
+  color: var(--skycast-color-accent);
+}
+
+.skycast-forecast-card__cell-temp-low {
+  font-size: var(--skycast-font-size-base);
+  color: var(--skycast-color-text-tertiary);
+  margin: 0;
+}
+
+.skycast-forecast-card__daily-cell--active
+  .skycast-forecast-card__cell-temp-low {
+  color: var(--skycast-color-accent);
+  opacity: 0.7;
+}
+
+@media (max-width: 600px) {
+  .skycast-forecast-card__hourly-cell,
+  .skycast-forecast-card__daily-cell {
+    width: 72px;
+    height: 84px;
+  }
+}
