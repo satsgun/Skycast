@@ -1,0 +1,76 @@
+/**
+ * Design tokens derived from the SkyCast UX mockups. Provenance for
+ * every value lives in ../../design-tokens.md -- do not hand-edit a
+ * value here without updating that file to match.
+ */
+:root {
+  /* Color */
+  --skycast-color-bg: #f1efe8;
+  --skycast-color-surface: #ffffff;
+  --skycast-color-border-subtle: #d3d1c7;
+  --skycast-color-border-default: #b4b2a9;
+  --skycast-color-text-primary: #2c2c2a;
+  --skycast-color-text-secondary: #5f5e5a;
+  --skycast-color-text-tertiary: #888780;
+  --skycast-color-text-muted: #b4b2a9;
+  --skycast-color-text-on-surface-action: #444441;
+  --skycast-color-accent: #185fa5;
+  --skycast-color-accent-bg: #e6f1fb;
+  --skycast-color-accent-strong: #0c447c;
+  --skycast-color-accent-border: #378add;
+  --skycast-color-success: #1d9e75;
+  --skycast-color-danger: #a32d2d;
+  --skycast-color-danger-border: #e24b4a;
+  --skycast-color-danger-bg: #fcebeb;
+
+  /* Typography */
+  --skycast-font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  --skycast-font-size-xs: 11px;
+  --skycast-font-size-sm: 12px;
+  --skycast-font-size-base: 13px;
+  --skycast-font-size-md: 14px;
+  --skycast-font-size-lg: 15px;
+  --skycast-font-size-xl: 16px;
+  --skycast-font-size-2xl: 18px;
+  --skycast-font-size-3xl: 22px;
+  --skycast-font-size-4xl: 30px;
+  --skycast-font-size-5xl: 44px;
+  --skycast-font-weight-regular: 400;
+  --skycast-font-weight-medium: 500;
+
+  /* Radii */
+  --skycast-radius-xs: 6px;
+  --skycast-radius-sm: 8px;
+  --skycast-radius-md: 12px;
+  --skycast-radius-lg: 16px;
+  --skycast-radius-full: 999px;
+
+  /* Spacing */
+  --skycast-space-1: 4px;
+  --skycast-space-2: 8px;
+  --skycast-space-3: 12px;
+  --skycast-space-4: 16px;
+  --skycast-space-5: 20px;
+  --skycast-space-6: 24px;
+  --skycast-space-8: 32px;
+
+  /* Sizing */
+  --skycast-size-icon-badge: 28px;
+
+  /* Borders */
+  --skycast-border-width: 1px;
+
+  /* Motion -- durations only, not mockup-derived (mockups are static) */
+  --skycast-motion-duration-fast: 150ms;
+  --skycast-motion-duration-base: 250ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
