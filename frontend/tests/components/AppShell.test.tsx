@@ -33,7 +33,7 @@ describe("AppShell", () => {
   });
 
   it("always renders the header, scroll area, and input bar", () => {
-    const query = makeQuery({ type: "empty", currentConditionsGlance: null });
+    const query = makeQuery({ type: "empty" });
     render(<AppShell query={query} settings={SETTINGS} />);
 
     expect(screen.getByText("Skycast")).toBeTruthy();
@@ -41,27 +41,21 @@ describe("AppShell", () => {
   });
 
   it("does not render the settings overlay when closed", () => {
-    const query = makeQuery(
-      { type: "empty", currentConditionsGlance: null },
-      false,
-    );
+    const query = makeQuery({ type: "empty" }, false);
     render(<AppShell query={query} settings={SETTINGS} />);
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("renders the settings overlay when open", () => {
-    const query = makeQuery(
-      { type: "empty", currentConditionsGlance: null },
-      true,
-    );
+    const query = makeQuery({ type: "empty" }, true);
     render(<AppShell query={query} settings={SETTINGS} />);
 
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("dispatches OPEN_SETTINGS when the header settings button is clicked", () => {
-    const query = makeQuery({ type: "empty", currentConditionsGlance: null });
+    const query = makeQuery({ type: "empty" });
     render(<AppShell query={query} settings={SETTINGS} />);
 
     fireEvent.click(screen.getByRole("button", { name: /settings/i }));
@@ -70,10 +64,7 @@ describe("AppShell", () => {
   });
 
   it("dispatches CLOSE_SETTINGS when the overlay close button is clicked", () => {
-    const query = makeQuery(
-      { type: "empty", currentConditionsGlance: null },
-      true,
-    );
+    const query = makeQuery({ type: "empty" }, true);
     render(<AppShell query={query} settings={SETTINGS} />);
 
     fireEvent.click(screen.getByRole("button", { name: /close/i }));
@@ -107,10 +98,13 @@ describe("AppShell", () => {
     },
   );
 
-  it("renders a static prompt for the empty state", () => {
-    const query = makeQuery({ type: "empty", currentConditionsGlance: null });
+  it("renders the empty-state heading and starter chips", () => {
+    const query = makeQuery({ type: "empty" });
     render(<AppShell query={query} settings={SETTINGS} />);
 
-    expect(screen.getByTestId("conversation-empty")).toBeTruthy();
+    expect(screen.getByText("What would you like to know?")).toBeTruthy();
+    expect(
+      screen.getByText("Do I need an umbrella this evening?"),
+    ).toBeTruthy();
   });
 });

@@ -4,7 +4,6 @@ import type {
   AnswerPayload,
   ClarifyPayload,
   ErrorPayload,
-  Forecast,
   Location,
   StepPayload,
 } from "../contract";
@@ -13,7 +12,7 @@ import { actionsFor, type ErrorAction } from "./errorActions";
 import type { CachedAnswer } from "./offlineCache";
 
 export type MainState =
-  | { type: "empty"; currentConditionsGlance: Forecast | null }
+  | { type: "empty" }
   | { type: "thinking"; query: string; steps: StepPayload[] }
   | {
       type: "answer";
@@ -56,7 +55,7 @@ function unhandledTransition(
 }
 
 function toEmpty(): MainState {
-  return { type: "empty", currentConditionsGlance: null };
+  return { type: "empty" };
 }
 
 function toThinking(query: string): MainState {

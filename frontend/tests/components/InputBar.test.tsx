@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InputBar, placeholderFor } from "../../src/components/InputBar";
 import type { MainState } from "../../src/state/machine";
 
-const EMPTY: MainState = { type: "empty", currentConditionsGlance: null };
+const EMPTY: MainState = { type: "empty" };
 const THINKING: MainState = { type: "thinking", query: "q", steps: [] };
 const ANSWER: MainState = {
   type: "answer",

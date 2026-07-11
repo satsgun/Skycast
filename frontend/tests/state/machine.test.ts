@@ -79,9 +79,9 @@ const ALL_MAIN_STATES: Record<string, () => MachineState> = {
 };
 
 describe("initialMachineState", () => {
-  it("starts empty, with no glance and settings closed", () => {
+  it("starts empty, with settings closed", () => {
     expect(initialMachineState()).toEqual({
-      main: { type: "empty", currentConditionsGlance: null },
+      main: { type: "empty" },
       isSettingsOpen: false,
     });
   });
@@ -286,10 +286,7 @@ describe("SESSION_EXPIRED", () => {
 
         const next = machineReducer(state, { type: "SESSION_EXPIRED" });
 
-        expect(next.main).toEqual({
-          type: "empty",
-          currentConditionsGlance: null,
-        });
+        expect(next.main).toEqual({ type: "empty" });
         expect(next.isSettingsOpen).toBe(isSettingsOpen);
       });
     }

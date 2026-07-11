@@ -1,6 +1,7 @@
 import type { MainState } from "../state/machine";
 import type { UseQueryResult } from "../state/useQuery";
 import type { UseSettingsStoreResult } from "../state/settingsStore";
+import { EmptyState } from "./EmptyState";
 import { Header } from "./Header";
 import { InputBar } from "./InputBar";
 import { SettingsOverlay } from "./SettingsOverlay";
@@ -13,15 +14,13 @@ export interface AppShellProps {
 
 /**
  * Minimal, mockup-unstyled placeholder per main-state type -- just
- * enough to prove the state wiring works end-to-end. F3.2-F3.7 each
+ * enough to prove the state wiring works end-to-end. F3.3-F3.7 each
  * replace their own case here with the real, mockup-accurate view.
+ * "empty" is handled separately by AppShell -- it's the only state
+ * with a real view (EmptyState, F3.2) and needs extra props.
  */
-function renderConversation(main: MainState) {
+function renderConversation(main: Exclude<MainState, { type: "empty" }>) {
   switch (main.type) {
-    case "empty":
-      return (
-        <p data-testid="conversation-empty">What would you like to know?</p>
-      );
     case "thinking":
       return <p>Thinking about "{main.query}"…</p>;
     case "answer":
@@ -46,14 +45,26 @@ function renderConversation(main: MainState) {
 export function AppShell({ query, settings }: AppShellProps) {
   const { state, dispatch, submitQuery } = query;
 
+  function openSettings(): void {
+    dispatch({ type: "OPEN_SETTINGS" });
+  }
+
   return (
     <div className="skycast-app-shell">
       <Header
         locationName={settings.settings.defaultLocation?.name ?? null}
-        onOpenSettings={() => dispatch({ type: "OPEN_SETTINGS" })}
+        onOpenSettings={openSettings}
       />
       <main className="skycast-app-shell__conversation">
-        {renderConversation(state.main)}
+        {state.main.type === "empty" ? (
+          <EmptyState
+            hasDefaultLocation={settings.settings.defaultLocation !== null}
+            onSubmit={submitQuery}
+            onOpenSettings={openSettings}
+          />
+        ) : (
+          renderConversation(state.main)
+        )}
       </main>
       <InputBar mainState={state.main} onSubmit={submitQuery} />
       <SettingsOverlay
