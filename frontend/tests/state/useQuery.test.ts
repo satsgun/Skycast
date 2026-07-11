@@ -599,3 +599,140 @@ describe("session carry-over", () => {
     expect(session.result.current.session.lastTimeWindow).toBeNull();
   });
 });
+
+describe("selectCandidate", () => {
+  it("issues a new request carrying resolved_location and the original query text", async () => {
+    const calls = stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "clarify",
+              data: { candidates: [LOCATION, OTHER_LOCATION] },
+            }),
+          ],
+          signal,
+        ),
+      (signal) => sseStream([], signal, { keepOpen: true }),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("Springfield weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("clarify"));
+
+    act(() => {
+      result.current.selectCandidate(LOCATION);
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(calls[1].request.query).toBe("Springfield weather?");
+    expect(calls[1].request.resolved_location).toEqual(LOCATION);
+  });
+
+  it("aborts the previous (clarify) stream when a candidate is selected", async () => {
+    const calls = stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "clarify",
+              data: { candidates: [LOCATION] },
+            }),
+          ],
+          signal,
+        ),
+      (signal) => sseStream([], signal, { keepOpen: true }),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("Springfield weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("clarify"));
+
+    act(() => {
+      result.current.selectCandidate(LOCATION);
+    });
+
+    expect(calls[0].signal.aborted).toBe(true);
+  });
+
+  it("records the tapped candidate as lastLocation immediately, before the new stream resolves", async () => {
+    const calls = stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "clarify",
+              data: { candidates: [LOCATION] },
+            }),
+          ],
+          signal,
+        ),
+      (signal) => sseStream([], signal, { keepOpen: true }),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("Springfield weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("clarify"));
+
+    act(() => {
+      result.current.selectCandidate(LOCATION);
+    });
+
+    const session = renderHook(() => useSessionStore());
+    expect(session.result.current.session.lastLocation).toEqual(LOCATION);
+    // The second stream is still open (never resolved) -- confirms this
+    // wasn't derived from an answer's own forecast data.
+    expect(calls[1].signal.aborted).toBe(false);
+  });
+
+  it("keeps the tapped candidate as lastLocation even if the re-query also ends in clarify", async () => {
+    stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "clarify",
+              data: { candidates: [LOCATION, OTHER_LOCATION] },
+            }),
+          ],
+          signal,
+        ),
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "clarify",
+              data: { candidates: [LOCATION, OTHER_LOCATION] },
+            }),
+          ],
+          signal,
+        ),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("Springfield weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("clarify"));
+
+    act(() => {
+      result.current.selectCandidate(LOCATION);
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("clarify"));
+
+    const session = renderHook(() => useSessionStore());
+    expect(session.result.current.session.lastLocation).toEqual(LOCATION);
+  });
+
+  it("throws when called while the machine is not in clarify state", () => {
+    const { result } = renderHook(() => useQuery());
+
+    expect(() => result.current.selectCandidate(LOCATION)).toThrow();
+  });
+});

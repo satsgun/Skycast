@@ -22,6 +22,7 @@ export interface UseQueryResult {
     text: string,
     options?: { resolvedLocation?: Location },
   ) => void;
+  selectCandidate: (candidate: Location) => void;
 }
 
 export function useQuery(): UseQueryResult {
@@ -85,7 +86,18 @@ export function useQuery(): UseQueryResult {
     );
   }
 
-  return { state, dispatch, submitQuery };
+  function selectCandidate(candidate: Location): void {
+    if (state.main.type !== "clarify") {
+      throw new Error(
+        "selectCandidate called while the machine is not in clarify state",
+      );
+    }
+    const originalQuery = state.main.query;
+    sessionStore.recordActivity({ query: originalQuery, location: candidate });
+    submitQuery(originalQuery, { resolvedLocation: candidate });
+  }
+
+  return { state, dispatch, submitQuery, selectCandidate };
 }
 
 function deriveCarriedContext(answer: AnswerPayload): {
