@@ -34,11 +34,16 @@ export function AnswerView({
       {isStale && (
         <p className="skycast-answer-view__stale-note">Showing cached data</p>
       )}
-      <ForecastCard
-        forecast={answer.card.forecasts[0]}
-        units={units}
-        highlightLocator={resolveHighlightLocator(answer.card, 0)}
-      />
+      <div className="skycast-answer-view__forecasts">
+        {answer.card.forecasts.map((forecast, index) => (
+          <ForecastCard
+            key={forecast.location.id}
+            forecast={forecast}
+            units={units}
+            highlightLocator={resolveHighlightLocator(answer.card, index)}
+          />
+        ))}
+      </div>
       {followUpChips.length > 0 && (
         <div className="skycast-answer-view__chips">
           {followUpChips.map((chip) => (

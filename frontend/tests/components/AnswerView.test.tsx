@@ -18,6 +18,19 @@ const LOCATION = {
   timezone: "UTC",
 };
 
+const LOCATION_2 = {
+  id: "2",
+  name: "Bangalore",
+  latitude: 12.97,
+  longitude: 77.59,
+  country: "India",
+  country_code: "IN",
+  admin1: null,
+  admin2: null,
+  population: 8_000_000,
+  timezone: "UTC",
+};
+
 const UNITS: UnitsSettings = {
   temperature: "C",
   windSpeed: "kmh",
@@ -201,5 +214,84 @@ describe("AnswerView", () => {
     expect(screen.getByTestId("forecast-current").className).not.toContain(
       "active",
     );
+  });
+
+  it("renders both forecasts side by side when there is more than one", () => {
+    const forecast1 = answer({}).card.forecasts[0];
+    const forecast2 = { ...forecast1, location: LOCATION_2 };
+    render(
+      <AnswerView
+        answer={answer({
+          card: { forecasts: [forecast1, forecast2], highlight: null },
+        })}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Hyderabad")).toBeTruthy();
+    expect(screen.getByText("Bangalore")).toBeTruthy();
+  });
+
+  it("highlight.forecast_index selects the correct side in a comparison", () => {
+    const CURRENT = {
+      timestamp: "2026-07-10T12:00:00Z",
+      temperature: 31,
+      feels_like: 34,
+      precip_probability: 10,
+      precip_amount: 0,
+      wind_speed: 12,
+      condition_code: "CLEAR" as const,
+    };
+    const forecast1 = { ...answer({}).card.forecasts[0], current: CURRENT };
+    const forecast2 = { ...forecast1, location: LOCATION_2 };
+    render(
+      <AnswerView
+        answer={answer({
+          card: {
+            forecasts: [forecast1, forecast2],
+            highlight: {
+              forecast_index: 1,
+              locator: { block: "current", index: null },
+            },
+          },
+        })}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const cards = screen.getAllByTestId("forecast-current");
+    expect(cards).toHaveLength(2);
+    expect(cards[0].className).not.toContain("active");
+    expect(cards[1].className).toContain("active");
+  });
+
+  it("renders the conclusion once, above both forecast cards", () => {
+    const forecast1 = answer({}).card.forecasts[0];
+    const forecast2 = { ...forecast1, location: LOCATION_2 };
+    const { container } = render(
+      <AnswerView
+        answer={answer({
+          card: { forecasts: [forecast1, forecast2], highlight: null },
+        })}
+        isStale={false}
+        followUpChips={[]}
+        units={UNITS}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Saturday stays dry and sunny.")).toHaveLength(
+      1,
+    );
+    const text = container.textContent ?? "";
+    const conclusionIndex = text.indexOf("Saturday stays dry and sunny.");
+    const bangaloreIndex = text.indexOf("Bangalore");
+    expect(bangaloreIndex).toBeGreaterThan(conclusionIndex);
   });
 });
