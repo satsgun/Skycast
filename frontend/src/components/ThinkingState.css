@@ -1,0 +1,58 @@
+.skycast-thinking {
+  background: var(--skycast-color-surface);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-subtle);
+  border-radius: var(--skycast-radius-md);
+  padding: var(--skycast-space-4);
+}
+
+.skycast-thinking__header {
+  color: var(--skycast-color-text-secondary);
+  font-size: var(--skycast-font-size-base);
+  margin: 0 0 var(--skycast-space-3);
+}
+
+.skycast-thinking__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--skycast-space-2);
+}
+
+.skycast-thinking__step {
+  display: flex;
+  align-items: center;
+  gap: var(--skycast-space-2);
+  padding: var(--skycast-space-2) var(--skycast-space-2);
+  border-radius: var(--skycast-radius-sm);
+  font-size: var(--skycast-font-size-base);
+}
+
+.skycast-thinking__step--done {
+  color: var(--skycast-color-text-primary);
+}
+
+.skycast-thinking__step--done .skycast-thinking__indicator {
+  color: var(--skycast-color-success);
+}
+
+.skycast-thinking__step--active {
+  background: var(--skycast-color-accent-bg);
+  color: var(--skycast-color-accent);
+}
+
+.skycast-thinking__step--active .skycast-thinking__indicator {
+  color: var(--skycast-color-accent);
+  animation: skycast-thinking-pulse var(--skycast-motion-duration-base)
+    ease-in-out infinite alternate;
+}
+
+@keyframes skycast-thinking-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}

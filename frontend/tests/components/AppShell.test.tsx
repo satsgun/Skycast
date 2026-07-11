@@ -107,4 +107,15 @@ describe("AppShell", () => {
       screen.getByText("Do I need an umbrella this evening?"),
     ).toBeTruthy();
   });
+
+  it("renders thinking steps through the full tree", () => {
+    const query = makeQuery({
+      type: "thinking",
+      query: "will it rain",
+      steps: [{ label: "Understood request", stage: "decompose" }],
+    });
+    render(<AppShell query={query} settings={SETTINGS} />);
+
+    expect(screen.getByText("Understood request")).toBeTruthy();
+  });
 });

@@ -5,6 +5,7 @@ import { EmptyState } from "./EmptyState";
 import { Header } from "./Header";
 import { InputBar } from "./InputBar";
 import { SettingsOverlay } from "./SettingsOverlay";
+import { ThinkingState } from "./ThinkingState";
 import "./AppShell.css";
 
 export interface AppShellProps {
@@ -14,7 +15,7 @@ export interface AppShellProps {
 
 /**
  * Minimal, mockup-unstyled placeholder per main-state type -- just
- * enough to prove the state wiring works end-to-end. F3.3-F3.7 each
+ * enough to prove the state wiring works end-to-end. F3.4-F3.7 each
  * replace their own case here with the real, mockup-accurate view.
  * "empty" is handled separately by AppShell -- it's the only state
  * with a real view (EmptyState, F3.2) and needs extra props.
@@ -22,7 +23,12 @@ export interface AppShellProps {
 function renderConversation(main: Exclude<MainState, { type: "empty" }>) {
   switch (main.type) {
     case "thinking":
-      return <p>Thinking about "{main.query}"…</p>;
+      return (
+        <div>
+          <p>{main.query}</p>
+          <ThinkingState steps={main.steps} />
+        </div>
+      );
     case "answer":
       return (
         <div>
