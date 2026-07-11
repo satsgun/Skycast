@@ -1,0 +1,88 @@
+.skycast-error-view {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--skycast-space-2);
+}
+
+.skycast-error-view__pill {
+  font-size: var(--skycast-font-size-xs);
+  color: var(--skycast-color-text-tertiary);
+  background: var(--skycast-color-surface);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-subtle);
+  border-radius: var(--skycast-radius-sm);
+  padding: var(--skycast-space-1) var(--skycast-space-2);
+}
+
+.skycast-error-view__pill--danger {
+  color: var(--skycast-color-danger);
+  background: var(--skycast-color-danger-bg);
+  border-color: transparent;
+}
+
+.skycast-error-view__card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--skycast-space-2);
+  background: var(--skycast-color-surface);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-subtle);
+  border-radius: var(--skycast-radius-md);
+  padding: var(--skycast-space-4);
+}
+
+.skycast-error-view__card--danger {
+  border-color: var(--skycast-color-danger-border);
+}
+
+.skycast-error-view__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--skycast-space-3);
+}
+
+.skycast-error-view__icon {
+  font-size: var(--skycast-font-size-2xl);
+  color: var(--skycast-color-text-secondary);
+}
+
+.skycast-error-view__card--danger .skycast-error-view__icon {
+  color: var(--skycast-color-danger);
+}
+
+.skycast-error-view__message {
+  font-size: var(--skycast-font-size-base);
+  font-weight: var(--skycast-font-weight-medium);
+  color: var(--skycast-color-text-primary);
+  margin: 0;
+}
+
+.skycast-error-view__freshness {
+  font-size: var(--skycast-font-size-base);
+  color: var(--skycast-color-text-secondary);
+  margin: 0;
+}
+
+.skycast-error-view__guidance {
+  font-size: var(--skycast-font-size-sm);
+  color: var(--skycast-color-text-secondary);
+  margin: 0;
+}
+
+.skycast-error-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--skycast-space-2);
+}
+
+.skycast-error-view__action {
+  padding: var(--skycast-space-2) var(--skycast-space-3);
+  border: var(--skycast-border-width) solid var(--skycast-color-border-default);
+  border-radius: var(--skycast-radius-sm);
+  background: var(--skycast-color-surface);
+  color: var(--skycast-color-text-on-surface-action);
+  font-family: var(--skycast-font-family);
+  font-size: var(--skycast-font-size-sm);
+  cursor: pointer;
+}

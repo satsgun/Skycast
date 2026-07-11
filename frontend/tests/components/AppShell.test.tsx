@@ -13,6 +13,7 @@ function makeQuery(main: MachineState["main"], isSettingsOpen = false) {
     dispatch: vi.fn(),
     submitQuery: vi.fn(),
     selectCandidate: vi.fn(),
+    showCached: vi.fn(),
   };
   return query;
 }
@@ -140,7 +141,7 @@ describe("AppShell", () => {
       type: "error",
       query: "will it rain",
       error: { kind: "internal", message: "boom" },
-      actions: [],
+      actions: [{ type: "retry" }],
     },
   ] as MachineState["main"][])(
     "renders the query text for main state %o without throwing",
@@ -206,5 +207,20 @@ describe("AppShell", () => {
     fireEvent.click(buttons[1]);
 
     expect(query.selectCandidate).toHaveBeenCalledWith(MINIMAL_CANDIDATES[1]);
+  });
+
+  it("renders an error through the full tree and retries with the original query", () => {
+    const query = makeQuery({
+      type: "error",
+      query: "will it rain",
+      error: { kind: "internal", message: "Something broke." },
+      actions: [{ type: "retry" }],
+    });
+    render(<AppShell query={query} settings={SETTINGS} />);
+
+    expect(screen.getByText("Something broke.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    expect(query.submitQuery).toHaveBeenCalledWith("will it rain");
   });
 });

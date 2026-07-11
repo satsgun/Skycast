@@ -8,6 +8,7 @@ import type {
 import { AnswerView } from "./AnswerView";
 import { ClarifyView } from "./ClarifyView";
 import { EmptyState } from "./EmptyState";
+import { ErrorView } from "./ErrorView";
 import { Header } from "./Header";
 import { InputBar } from "./InputBar";
 import { SettingsOverlay } from "./SettingsOverlay";
@@ -23,6 +24,8 @@ interface ConversationContext {
   units: UnitsSettings;
   onSubmit: (text: string) => void;
   onSelectCandidate: (candidate: Location) => void;
+  onShowCached: () => void;
+  onOpenSettings: () => void;
 }
 
 /**
@@ -71,14 +74,20 @@ function renderConversation(
       return (
         <div>
           <p>{main.query}</p>
-          <p>{main.error.message}</p>
+          <ErrorView
+            error={main.error}
+            actions={main.actions}
+            onRetry={() => context.onSubmit(main.query)}
+            onShowCached={context.onShowCached}
+            onOpenSettings={context.onOpenSettings}
+          />
         </div>
       );
   }
 }
 
 export function AppShell({ query, settings }: AppShellProps) {
-  const { state, dispatch, submitQuery, selectCandidate } = query;
+  const { state, dispatch, submitQuery, selectCandidate, showCached } = query;
 
   function openSettings(): void {
     dispatch({ type: "OPEN_SETTINGS" });
@@ -102,6 +111,8 @@ export function AppShell({ query, settings }: AppShellProps) {
             units: settings.settings.units,
             onSubmit: submitQuery,
             onSelectCandidate: selectCandidate,
+            onShowCached: showCached,
+            onOpenSettings: openSettings,
           })
         )}
       </main>

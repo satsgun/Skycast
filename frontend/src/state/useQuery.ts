@@ -23,6 +23,7 @@ export interface UseQueryResult {
     options?: { resolvedLocation?: Location },
   ) => void;
   selectCandidate: (candidate: Location) => void;
+  showCached: () => void;
 }
 
 export function useQuery(): UseQueryResult {
@@ -110,7 +111,12 @@ export function useQuery(): UseQueryResult {
     submitQuery(originalQuery, { resolvedLocation: candidate });
   }
 
-  return { state, dispatch, submitQuery, selectCandidate };
+  function showCached(): void {
+    if (offlineCache.cached === null) return;
+    dispatch({ type: "SHOW_CACHED", payload: offlineCache.cached.answer });
+  }
+
+  return { state, dispatch, submitQuery, selectCandidate, showCached };
 }
 
 function deriveCarriedContext(answer: AnswerPayload): {

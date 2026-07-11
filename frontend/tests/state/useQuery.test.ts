@@ -9,6 +9,7 @@ import type {
   Location,
   QueryRequest,
 } from "../../src/contract";
+import { generateFollowUpChips } from "../../src/state/chips";
 import { useOfflineCache } from "../../src/state/offlineCache";
 import { useSessionStore } from "../../src/state/sessionStore";
 import { useQuery } from "../../src/state/useQuery";
@@ -659,6 +660,60 @@ describe("error actions", () => {
       actions: { type: string }[];
     };
     expect(errorMain.actions).toEqual([{ type: "retry" }]);
+  });
+});
+
+describe("showCached", () => {
+  it("is a no-op when the offline cache is empty", () => {
+    const { result } = renderHook(() => useQuery());
+    const stateBefore = result.current.state;
+
+    act(() => {
+      result.current.showCached();
+    });
+
+    expect(result.current.state).toEqual(stateBefore);
+  });
+
+  it("dispatches SHOW_CACHED with the cached answer, landing on a stale answer state", async () => {
+    const cachedAnswer = {
+      answer: answerPayload(),
+      cachedAt: "2026-07-10T11:00:00Z",
+    };
+    localStorage.setItem("skycast:offline-cache", JSON.stringify(cachedAnswer));
+    stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "error",
+              data: { kind: "provider_unreachable", message: "offline" },
+            }),
+          ],
+          signal,
+        ),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("what's the weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("error"));
+
+    act(() => {
+      result.current.showCached();
+    });
+
+    expect(result.current.state.main).toEqual({
+      type: "answer",
+      query: "what's the weather?",
+      answer: cachedAnswer.answer,
+      isStale: true,
+      followUpChips: generateFollowUpChips(
+        "what's the weather?",
+        cachedAnswer.answer,
+      ),
+    });
   });
 });
 
