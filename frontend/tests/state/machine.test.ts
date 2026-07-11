@@ -145,13 +145,17 @@ describe("ANSWER", () => {
       payload: ANSWER,
     });
 
-    expect(state.main).toEqual({
-      type: "answer",
-      query: "what's the weather?",
-      answer: ANSWER,
-      isStale: false,
-      followUpChips: [],
-    });
+    expect(state.main.type).toBe("answer");
+    const answerMain = state.main as {
+      query: string;
+      answer: AnswerPayload;
+      isStale: boolean;
+      followUpChips: string[];
+    };
+    expect(answerMain.query).toBe("what's the weather?");
+    expect(answerMain.answer).toEqual(ANSWER);
+    expect(answerMain.isStale).toBe(false);
+    expect(answerMain.followUpChips).toHaveLength(2);
   });
 });
 
@@ -225,13 +229,17 @@ describe("SHOW_CACHED", () => {
       payload: ANSWER,
     });
 
-    expect(state.main).toEqual({
-      type: "answer",
-      query: "what's the weather?",
-      answer: ANSWER,
-      isStale: true,
-      followUpChips: [],
-    });
+    expect(state.main.type).toBe("answer");
+    const answerMain = state.main as {
+      query: string;
+      answer: AnswerPayload;
+      isStale: boolean;
+      followUpChips: string[];
+    };
+    expect(answerMain.query).toBe("what's the weather?");
+    expect(answerMain.answer).toEqual(ANSWER);
+    expect(answerMain.isStale).toBe(true);
+    expect(answerMain.followUpChips).toHaveLength(2);
   });
 
   it("does not gate on the error's kind -- any error state accepts SHOW_CACHED", () => {

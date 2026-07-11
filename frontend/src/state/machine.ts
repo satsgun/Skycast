@@ -9,6 +9,7 @@ import type {
   Location,
   StepPayload,
 } from "../contract";
+import { generateFollowUpChips } from "./chips";
 
 export interface ErrorAction {
   type: "retry"; // widened by F2.5 when it lands
@@ -63,13 +64,6 @@ function toEmpty(): MainState {
 
 function toThinking(query: string): MainState {
   return { type: "thinking", query, steps: [] };
-}
-
-function generateFollowUpChips(
-  _query: string,
-  _answer: AnswerPayload,
-): string[] {
-  return []; // placeholder -- real heuristic lands in F2.4
 }
 
 function actionsFor(_kind: ErrorKind): ErrorAction[] {
