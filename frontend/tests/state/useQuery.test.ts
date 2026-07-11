@@ -600,6 +600,68 @@ describe("session carry-over", () => {
   });
 });
 
+describe("error actions", () => {
+  it("includes a show_cached action with the cached freshness timestamp when the offline cache is populated", async () => {
+    const cachedAnswer = {
+      answer: answerPayload(),
+      cachedAt: "2026-07-10T11:00:00Z",
+    };
+    localStorage.setItem("skycast:offline-cache", JSON.stringify(cachedAnswer));
+    stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "error",
+              data: { kind: "provider_unreachable", message: "offline" },
+            }),
+          ],
+          signal,
+        ),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("what's the weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("error"));
+
+    const errorMain = result.current.state.main as {
+      actions: { type: string; cachedAt?: string }[];
+    };
+    expect(errorMain.actions).toContainEqual({
+      type: "show_cached",
+      cachedAt: "2026-07-10T11:00:00Z",
+    });
+  });
+
+  it("omits show_cached when the offline cache is empty", async () => {
+    stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "error",
+              data: { kind: "provider_unreachable", message: "offline" },
+            }),
+          ],
+          signal,
+        ),
+    ]);
+    const { result } = renderHook(() => useQuery());
+
+    act(() => {
+      result.current.submitQuery("what's the weather?");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("error"));
+
+    const errorMain = result.current.state.main as {
+      actions: { type: string }[];
+    };
+    expect(errorMain.actions).toEqual([{ type: "retry" }]);
+  });
+});
+
 describe("selectCandidate", () => {
   it("issues a new request carrying resolved_location and the original query text", async () => {
     const calls = stubFetchQueue([

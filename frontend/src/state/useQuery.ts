@@ -78,7 +78,11 @@ export function useQuery(): UseQueryResult {
           });
         },
         onError: (payload) => {
-          dispatch({ type: "ERROR", payload });
+          dispatch({
+            type: "ERROR",
+            payload,
+            cachedAnswer: offlineCache.cached,
+          });
           sessionStore.recordActivity({ query: text });
         },
       },

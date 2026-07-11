@@ -3,17 +3,14 @@ import { useReducer, type Dispatch } from "react";
 import type {
   AnswerPayload,
   ClarifyPayload,
-  ErrorKind,
   ErrorPayload,
   Forecast,
   Location,
   StepPayload,
 } from "../contract";
 import { generateFollowUpChips } from "./chips";
-
-export interface ErrorAction {
-  type: "retry"; // widened by F2.5 when it lands
-}
+import { actionsFor, type ErrorAction } from "./errorActions";
+import type { CachedAnswer } from "./offlineCache";
 
 export type MainState =
   | { type: "empty"; currentConditionsGlance: Forecast | null }
@@ -43,7 +40,7 @@ export type MachineEvent =
   | { type: "STEP"; payload: StepPayload }
   | { type: "ANSWER"; payload: AnswerPayload }
   | { type: "CLARIFY"; payload: ClarifyPayload }
-  | { type: "ERROR"; payload: ErrorPayload }
+  | { type: "ERROR"; payload: ErrorPayload; cachedAnswer: CachedAnswer | null }
   | { type: "SHOW_CACHED"; payload: AnswerPayload }
   | { type: "SESSION_EXPIRED" }
   | { type: "OPEN_SETTINGS" }
@@ -64,10 +61,6 @@ function toEmpty(): MainState {
 
 function toThinking(query: string): MainState {
   return { type: "thinking", query, steps: [] };
-}
-
-function actionsFor(_kind: ErrorKind): ErrorAction[] {
-  return [{ type: "retry" }]; // placeholder -- real policy lands in F2.5
 }
 
 function appendStep(main: MainState, payload: StepPayload): MainState {
@@ -101,13 +94,14 @@ function toClarifyFromThinking(
 function toErrorFromThinking(
   main: MainState,
   payload: ErrorPayload,
+  cachedAnswer: CachedAnswer | null,
 ): MainState {
   if (main.type !== "thinking") return unhandledTransition(main.type, "ERROR");
   return {
     type: "error",
     query: main.query,
     error: payload,
-    actions: actionsFor(payload.kind),
+    actions: actionsFor(payload.kind, cachedAnswer),
   };
 }
 
@@ -156,7 +150,14 @@ export function machineReducer(
         main: toClarifyFromThinking(state.main, event.payload),
       };
     case "ERROR":
-      return { ...state, main: toErrorFromThinking(state.main, event.payload) };
+      return {
+        ...state,
+        main: toErrorFromThinking(
+          state.main,
+          event.payload,
+          event.cachedAnswer,
+        ),
+      };
     case "SHOW_CACHED":
       return {
         ...state,

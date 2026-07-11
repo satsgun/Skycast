@@ -16,6 +16,7 @@ import {
   type MachineEvent,
   type MachineState,
 } from "../../src/state/machine";
+import type { CachedAnswer } from "../../src/state/offlineCache";
 
 const LOCATION: Location = {
   id: "1",
@@ -58,10 +59,14 @@ function clarifyState(): MachineState {
   return machineReducer(thinkingState(), { type: "CLARIFY", payload: CLARIFY });
 }
 
-function errorState(kind: ErrorKind = "internal"): MachineState {
+function errorState(
+  kind: ErrorKind = "internal",
+  cachedAnswer: CachedAnswer | null = null,
+): MachineState {
   return machineReducer(thinkingState(), {
     type: "ERROR",
     payload: errorPayload(kind),
+    cachedAnswer,
   });
 }
 
@@ -189,6 +194,7 @@ describe("ERROR", () => {
       const state = machineReducer(thinkingState("query text"), {
         type: "ERROR",
         payload,
+        cachedAnswer: null,
       });
 
       expect(state.main.type).toBe("error");
@@ -202,6 +208,25 @@ describe("ERROR", () => {
       expect(errorMain.actions.length).toBeGreaterThanOrEqual(1);
     });
   }
+
+  it("threads a non-null cachedAnswer from the event into a show_cached action", () => {
+    const cachedAnswer: CachedAnswer = {
+      answer: ANSWER,
+      cachedAt: "2026-07-11T10:00:00Z",
+    };
+
+    const state = machineReducer(thinkingState("query text"), {
+      type: "ERROR",
+      payload: errorPayload("provider_unreachable"),
+      cachedAnswer,
+    });
+
+    const errorMain = state.main as { actions: { type: string }[] };
+    expect(errorMain.actions).toContainEqual({
+      type: "show_cached",
+      cachedAt: "2026-07-11T10:00:00Z",
+    });
+  });
 });
 
 describe("clarify re-query loop", () => {
@@ -340,6 +365,7 @@ describe("unhandled (state, event) pairs throw", () => {
         machineReducer(buildState(), {
           type: "ERROR",
           payload: errorPayload("internal"),
+          cachedAnswer: null,
         }),
       ).toThrow();
     });
