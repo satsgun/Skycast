@@ -30,10 +30,13 @@ export function useQuery(): UseQueryResult {
   const settingsStore = useSettingsStore();
   const sessionStore = useSessionStore();
   const offlineCache = useOfflineCache();
-  // NOTE(F2.6): SESSION_EXPIRED must also abort abortControllerRef.current,
-  // or a late terminal event will throw inside this hook's un-awaited
-  // runQuery promise (machineReducer rejects any event once main is no
-  // longer "thinking").
+  // Any dispatcher of SESSION_EXPIRED must abort abortControllerRef.current
+  // first, or a late terminal event from the still-in-flight stream will
+  // throw inside this hook's un-awaited runQuery promise (machineReducer
+  // rejects any event once main is no longer "thinking"). submitQuery below
+  // gets this for free -- its own abort() call always precedes its
+  // SESSION_EXPIRED dispatch -- but a future independent dispatcher (an
+  // idle timer, a sign-out action) would need the same guarantee.
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -47,6 +50,12 @@ export function useQuery(): UseQueryResult {
     options?: { resolvedLocation?: Location },
   ): void {
     abortControllerRef.current?.abort();
+
+    if (sessionStore.isExpired()) {
+      dispatch({ type: "SESSION_EXPIRED" });
+      sessionStore.clearSession();
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
 

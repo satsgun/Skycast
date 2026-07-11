@@ -126,3 +126,47 @@ describe("useSessionStore", () => {
     expect(reloaded.result.current.session.lastLocation).toBeNull();
   });
 });
+
+describe("isExpired", () => {
+  it("is false for a freshly-loaded session with no prior activity", () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    expect(result.current.isExpired()).toBe(false);
+  });
+
+  it("is false immediately after recordActivity", () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.recordActivity({ query: "what's the weather?" });
+    });
+
+    expect(result.current.isExpired()).toBe(false);
+  });
+
+  it("becomes true once 30+ minutes have passed since the last activity", () => {
+    const { result } = renderHook(() => useSessionStore());
+    act(() => {
+      result.current.recordActivity({ query: "what's the weather?" });
+    });
+
+    vi.setSystemTime(new Date(NOW.getTime() + 31 * 60 * 1000));
+
+    expect(result.current.isExpired()).toBe(true);
+  });
+
+  it("is false again immediately after clearSession", () => {
+    const { result } = renderHook(() => useSessionStore());
+    act(() => {
+      result.current.recordActivity({ query: "what's the weather?" });
+    });
+    vi.setSystemTime(new Date(NOW.getTime() + 31 * 60 * 1000));
+    expect(result.current.isExpired()).toBe(true);
+
+    act(() => {
+      result.current.clearSession();
+    });
+
+    expect(result.current.isExpired()).toBe(false);
+  });
+});

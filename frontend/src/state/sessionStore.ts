@@ -25,26 +25,36 @@ export interface UseSessionStoreResult {
   session: SessionState;
   recordActivity: (entry: RecordActivityEntry) => void;
   clearSession: () => void;
+  isExpired: () => boolean;
 }
 
 const STORAGE_KEY = "skycast:session";
 const SESSION_WINDOW_MS = 30 * 60 * 1000;
 const MAX_QUERY_HISTORY = 10;
 
+const NEVER_ACTIVE_TIMESTAMP = new Date(0).toISOString();
+
 function emptySession(): SessionState {
   return {
     lastLocation: null,
     lastTimeWindow: null,
     queryHistory: [],
-    lastActivityAt: new Date(0).toISOString(),
+    lastActivityAt: NEVER_ACTIVE_TIMESTAMP,
   };
+}
+
+function isSessionExpired(state: SessionState): boolean {
+  if (state.lastActivityAt === NEVER_ACTIVE_TIMESTAMP) {
+    return false;
+  }
+  return (
+    Date.now() - new Date(state.lastActivityAt).getTime() > SESSION_WINDOW_MS
+  );
 }
 
 function loadSession(): SessionState {
   const stored = readPersisted<SessionState>(STORAGE_KEY, emptySession());
-  const isExpired =
-    Date.now() - new Date(stored.lastActivityAt).getTime() > SESSION_WINDOW_MS;
-  return isExpired ? emptySession() : stored;
+  return isSessionExpired(stored) ? emptySession() : stored;
 }
 
 export function useSessionStore(): UseSessionStoreResult {
@@ -71,5 +81,9 @@ export function useSessionStore(): UseSessionStoreResult {
     setSession(next);
   }
 
-  return { session, recordActivity, clearSession };
+  function isExpired(): boolean {
+    return isSessionExpired(session);
+  }
+
+  return { session, recordActivity, clearSession, isExpired };
 }

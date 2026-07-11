@@ -662,6 +662,43 @@ describe("error actions", () => {
   });
 });
 
+describe("session expiry", () => {
+  it("clears the session when submitQuery is called after 30+ minutes of inactivity mid-session", async () => {
+    localStorage.setItem(
+      "skycast:session",
+      JSON.stringify({
+        lastLocation: LOCATION,
+        lastTimeWindow: null,
+        queryHistory: ["old query"],
+        lastActivityAt: NOW.toISOString(),
+      }),
+    );
+    // Mount while the session is still fresh, so loadSession()'s own
+    // mount-time check does not fire -- isolates the on-interaction check.
+    const { result } = renderHook(() => useQuery());
+
+    // The tab sits idle for 31 minutes with no interaction.
+    vi.setSystemTime(new Date(NOW.getTime() + 31 * 60 * 1000));
+    stubFetchQueue([(signal) => sseStream([], signal, { keepOpen: true })]);
+
+    act(() => {
+      result.current.submitQuery("new query");
+    });
+
+    // Read the persisted value directly rather than mounting a fresh
+    // useSessionStore(): a new hook instance would re-run loadSession()'s
+    // own mount-time check at the now-advanced time and clear itself
+    // regardless, masking whether submitQuery's own on-interaction check
+    // actually fired.
+    const persisted = JSON.parse(
+      localStorage.getItem("skycast:session") ?? "null",
+    );
+    expect(persisted.lastLocation).toBeNull();
+    expect(persisted.queryHistory).toEqual([]);
+    expect(result.current.state.main.type).toBe("thinking");
+  });
+});
+
 describe("selectCandidate", () => {
   it("issues a new request carrying resolved_location and the original query text", async () => {
     const calls = stubFetchQueue([
