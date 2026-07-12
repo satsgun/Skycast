@@ -4,6 +4,7 @@ import "./ClarifyView.css";
 
 export interface ClarifyViewProps {
   candidates: Location[];
+  forLocationName: string;
   onSelect: (candidate: Location) => void;
 }
 
@@ -16,13 +17,15 @@ function subtitleFor(candidate: Location): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-export function ClarifyView({ candidates, onSelect }: ClarifyViewProps) {
-  const sharedName = candidates[0].name;
-
+export function ClarifyView({
+  candidates,
+  forLocationName,
+  onSelect,
+}: ClarifyViewProps) {
   return (
     <div className="skycast-clarify-view">
       <p className="skycast-clarify-view__prompt">
-        There are a few {sharedName}s — which one?
+        There are a few {forLocationName}s — which one?
       </p>
       <div className="skycast-clarify-view__options">
         {candidates.map((candidate) => {

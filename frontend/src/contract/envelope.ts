@@ -10,6 +10,8 @@ export interface StepPayload {
 
 export interface ClarifyPayload {
   candidates: Location[];
+  for_location_name: string;
+  resolved: Record<string, Location>;
 }
 
 export type ForecastBlock = "current" | "hourly" | "daily";

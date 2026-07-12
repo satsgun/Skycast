@@ -13,7 +13,13 @@ const ANSWER: MainState = {
   isStale: false,
   followUpChips: [],
 };
-const CLARIFY: MainState = { type: "clarify", query: "q", candidates: [] };
+const CLARIFY: MainState = {
+  type: "clarify",
+  query: "q",
+  candidates: [],
+  forLocationName: "X",
+  resolvedSoFar: {},
+};
 const ERROR: MainState = {
   type: "error",
   query: "q",

@@ -238,6 +238,19 @@ function assertValidSSEEvent(value: unknown, rawLine: string): void {
       data.candidates.forEach((c, i) =>
         assertValidLocation(c, `clarify.data.candidates[${i}]`),
       );
+      if (!isString(data.for_location_name)) {
+        throw new Error(
+          `clarify.data.for_location_name: expected a string in: ${rawLine}`,
+        );
+      }
+      if (!isRecord(data.resolved)) {
+        throw new Error(
+          `clarify.data.resolved: expected an object in: ${rawLine}`,
+        );
+      }
+      for (const [name, loc] of Object.entries(data.resolved)) {
+        assertValidLocation(loc, `clarify.data.resolved[${name}]`);
+      }
       return;
     }
     case "answer": {

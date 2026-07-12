@@ -41,7 +41,11 @@ const ANSWER: AnswerPayload = {
   card: { forecasts: [], highlight: null },
 };
 
-const CLARIFY: ClarifyPayload = { candidates: [LOCATION] };
+const CLARIFY: ClarifyPayload = {
+  candidates: [LOCATION],
+  for_location_name: "Austin",
+  resolved: {},
+};
 
 function errorPayload(kind: ErrorKind): ErrorPayload {
   return { kind, message: `something went wrong: ${kind}` };
@@ -175,6 +179,28 @@ describe("CLARIFY", () => {
       type: "clarify",
       query: "Springfield weather?",
       candidates: [LOCATION],
+      forLocationName: "Austin",
+      resolvedSoFar: {},
+    });
+  });
+
+  it("carries forward resolved siblings from a comparison's clarify payload", () => {
+    const mumbai: Location = { ...LOCATION, id: "2", name: "Mumbai" };
+    const state = machineReducer(thinkingState("Compare Mumbai and Delhi"), {
+      type: "CLARIFY",
+      payload: {
+        candidates: [LOCATION],
+        for_location_name: "Delhi",
+        resolved: { Mumbai: mumbai },
+      },
+    });
+
+    expect(state.main).toEqual({
+      type: "clarify",
+      query: "Compare Mumbai and Delhi",
+      candidates: [LOCATION],
+      forLocationName: "Delhi",
+      resolvedSoFar: { Mumbai: mumbai },
     });
   });
 });

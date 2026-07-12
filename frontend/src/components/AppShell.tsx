@@ -70,6 +70,7 @@ function renderConversation(
           <p>{main.query}</p>
           <ClarifyView
             candidates={main.candidates}
+            forLocationName={main.forLocationName}
             onSelect={context.onSelectCandidate}
           />
         </div>

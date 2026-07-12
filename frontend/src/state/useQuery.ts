@@ -20,7 +20,7 @@ export interface UseQueryResult {
   dispatch: Dispatch<MachineEvent>;
   submitQuery: (
     text: string,
-    options?: { resolvedLocation?: Location },
+    options?: { resolvedLocations?: Record<string, Location> },
   ) => void;
   selectCandidate: (candidate: Location) => void;
   showCached: () => void;
@@ -49,7 +49,7 @@ export function useQuery(
 
   function submitQuery(
     text: string,
-    options?: { resolvedLocation?: Location },
+    options?: { resolvedLocations?: Record<string, Location> },
   ): void {
     abortControllerRef.current?.abort();
 
@@ -68,8 +68,8 @@ export function useQuery(
       now: new Date().toISOString(),
       ...settingsStore.toQueryRequestFields(),
     };
-    if (options?.resolvedLocation !== undefined) {
-      request.resolved_location = options.resolvedLocation;
+    if (options?.resolvedLocations !== undefined) {
+      request.resolved_locations = options.resolvedLocations;
     }
 
     void runQuery(
@@ -109,7 +109,12 @@ export function useQuery(
     }
     const originalQuery = state.main.query;
     sessionStore.recordActivity({ query: originalQuery, location: candidate });
-    submitQuery(originalQuery, { resolvedLocation: candidate });
+    submitQuery(originalQuery, {
+      resolvedLocations: {
+        ...state.main.resolvedSoFar,
+        [state.main.forLocationName]: candidate,
+      },
+    });
   }
 
   function showCached(): void {

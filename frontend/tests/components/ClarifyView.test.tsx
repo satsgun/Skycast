@@ -48,9 +48,13 @@ describe("ClarifyView", () => {
     cleanup();
   });
 
-  it("renders the agent line with the shared candidate name interpolated", () => {
+  it("renders the agent line with forLocationName interpolated", () => {
     render(
-      <ClarifyView candidates={[ILLINOIS, MISSOURI]} onSelect={vi.fn()} />,
+      <ClarifyView
+        candidates={[ILLINOIS, MISSOURI]}
+        forLocationName="Springfield"
+        onSelect={vi.fn()}
+      />,
     );
 
     expect(
@@ -60,7 +64,11 @@ describe("ClarifyView", () => {
 
   it("renders one button per candidate, in order, with title and subtitle", () => {
     render(
-      <ClarifyView candidates={[ILLINOIS, MISSOURI]} onSelect={vi.fn()} />,
+      <ClarifyView
+        candidates={[ILLINOIS, MISSOURI]}
+        forLocationName="Springfield"
+        onSelect={vi.fn()}
+      />,
     );
 
     const buttons = screen.getAllByRole("button");
@@ -73,7 +81,13 @@ describe("ClarifyView", () => {
   });
 
   it("omits subtitle parts gracefully when country/population/admin1 are null", () => {
-    render(<ClarifyView candidates={[SPARSE, ILLINOIS]} onSelect={vi.fn()} />);
+    render(
+      <ClarifyView
+        candidates={[SPARSE, ILLINOIS]}
+        forLocationName="Springfield"
+        onSelect={vi.fn()}
+      />,
+    );
 
     const buttons = screen.getAllByRole("button");
     expect(buttons[0].textContent).toContain("Springfield");
@@ -81,10 +95,33 @@ describe("ClarifyView", () => {
     expect(buttons[0].textContent).not.toContain("pop.");
   });
 
+  it("uses forLocationName for the header even when it differs from candidates' own names", () => {
+    // Mirrors issue #91: a geocode match's own name isn't always a
+    // reliable stand-in for the query term (e.g. "LA" matching villages
+    // named something else entirely) -- forLocationName is now the
+    // single source of truth for the header, not candidates[0].name.
+    const oddlyNamed: Location = { ...SPARSE, id: "4", name: "Nyckleby" };
+    render(
+      <ClarifyView
+        candidates={[oddlyNamed]}
+        forLocationName="LA"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("There are a few LAs — which one?"),
+    ).toBeTruthy();
+  });
+
   it("calls onSelect with the exact candidate that was tapped", () => {
     const onSelect = vi.fn();
     render(
-      <ClarifyView candidates={[ILLINOIS, MISSOURI]} onSelect={onSelect} />,
+      <ClarifyView
+        candidates={[ILLINOIS, MISSOURI]}
+        forLocationName="Springfield"
+        onSelect={onSelect}
+      />,
     );
 
     fireEvent.click(screen.getAllByRole("button")[1]);

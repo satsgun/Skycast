@@ -45,6 +45,8 @@ describe("SSEEvent discriminated union", () => {
             timezone: null,
           },
         ],
+        for_location_name: "Springfield",
+        resolved: {},
       },
     };
 

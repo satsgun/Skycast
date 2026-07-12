@@ -21,7 +21,13 @@ export type MainState =
       isStale: boolean;
       followUpChips: string[];
     }
-  | { type: "clarify"; query: string; candidates: Location[] }
+  | {
+      type: "clarify";
+      query: string;
+      candidates: Location[];
+      forLocationName: string;
+      resolvedSoFar: Record<string, Location>;
+    }
   | {
       type: "error";
       query: string;
@@ -87,7 +93,13 @@ function toClarifyFromThinking(
 ): MainState {
   if (main.type !== "thinking")
     return unhandledTransition(main.type, "CLARIFY");
-  return { type: "clarify", query: main.query, candidates: payload.candidates };
+  return {
+    type: "clarify",
+    query: main.query,
+    candidates: payload.candidates,
+    forLocationName: payload.for_location_name,
+    resolvedSoFar: payload.resolved,
+  };
 }
 
 function toErrorFromThinking(

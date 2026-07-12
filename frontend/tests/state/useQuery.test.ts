@@ -236,7 +236,7 @@ describe("submitQuery request building", () => {
     expect(calls[0].request.default_location).toEqual(LOCATION);
   });
 
-  it("includes resolved_location when passed", async () => {
+  it("includes resolved_locations when passed", async () => {
     const calls = stubFetchQueue([
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
@@ -244,14 +244,16 @@ describe("submitQuery request building", () => {
 
     act(() => {
       result.current.submitQuery("Springfield weather?", {
-        resolvedLocation: LOCATION,
+        resolvedLocations: { Springfield: LOCATION },
       });
     });
 
-    expect(calls[0].request.resolved_location).toEqual(LOCATION);
+    expect(calls[0].request.resolved_locations).toEqual({
+      Springfield: LOCATION,
+    });
   });
 
-  it("omits resolved_location when not passed", async () => {
+  it("omits resolved_locations when not passed", async () => {
     const calls = stubFetchQueue([
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
@@ -261,7 +263,7 @@ describe("submitQuery request building", () => {
       result.current.submitQuery("what's the weather?");
     });
 
-    expect(calls[0].request.resolved_location).toBeUndefined();
+    expect(calls[0].request.resolved_locations).toBeUndefined();
   });
 });
 
@@ -793,14 +795,18 @@ describe("session expiry", () => {
 });
 
 describe("selectCandidate", () => {
-  it("issues a new request carrying resolved_location and the original query text", async () => {
+  it("issues a new request carrying resolved_locations and the original query text", async () => {
     const calls = stubFetchQueue([
       (signal) =>
         sseStream(
           [
             JSON.stringify({
               type: "clarify",
-              data: { candidates: [LOCATION, OTHER_LOCATION] },
+              data: {
+                candidates: [LOCATION, OTHER_LOCATION],
+                for_location_name: "Springfield",
+                resolved: {},
+              },
             }),
           ],
           signal,
@@ -820,7 +826,45 @@ describe("selectCandidate", () => {
 
     expect(calls).toHaveLength(2);
     expect(calls[1].request.query).toBe("Springfield weather?");
-    expect(calls[1].request.resolved_location).toEqual(LOCATION);
+    expect(calls[1].request.resolved_locations).toEqual({
+      Springfield: LOCATION,
+    });
+  });
+
+  it("merges resolvedSoFar with the newly-picked candidate for a comparison's second round", async () => {
+    const mumbai: Location = { ...LOCATION, id: "3", name: "Mumbai" };
+    const calls = stubFetchQueue([
+      (signal) =>
+        sseStream(
+          [
+            JSON.stringify({
+              type: "clarify",
+              data: {
+                candidates: [LOCATION, OTHER_LOCATION],
+                for_location_name: "Delhi",
+                resolved: { Mumbai: mumbai },
+              },
+            }),
+          ],
+          signal,
+        ),
+      (signal) => sseStream([], signal, { keepOpen: true }),
+    ]);
+    const { result } = renderUseQuery();
+
+    act(() => {
+      result.current.submitQuery("Compare Mumbai and Delhi");
+    });
+    await waitFor(() => expect(result.current.state.main.type).toBe("clarify"));
+
+    act(() => {
+      result.current.selectCandidate(LOCATION);
+    });
+
+    expect(calls[1].request.resolved_locations).toEqual({
+      Mumbai: mumbai,
+      Delhi: LOCATION,
+    });
   });
 
   it("aborts the previous (clarify) stream when a candidate is selected", async () => {

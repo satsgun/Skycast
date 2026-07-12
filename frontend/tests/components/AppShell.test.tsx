@@ -199,6 +199,8 @@ describe("AppShell", () => {
       type: "clarify",
       query: "will it rain",
       candidates: MINIMAL_CANDIDATES,
+      forLocationName: "Springfield",
+      resolvedSoFar: {},
     });
     render(<AppShell query={query} settings={SETTINGS} />);
 
