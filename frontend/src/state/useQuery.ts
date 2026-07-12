@@ -13,7 +13,7 @@ import { useMachine } from "./machine";
 import { useOfflineCache } from "./offlineCache";
 import type { TimeWindow } from "./sessionStore";
 import { useSessionStore } from "./sessionStore";
-import { useSettingsStore } from "./settingsStore";
+import type { UseSettingsStoreResult } from "./settingsStore";
 
 export interface UseQueryResult {
   state: MachineState;
@@ -26,9 +26,10 @@ export interface UseQueryResult {
   showCached: () => void;
 }
 
-export function useQuery(): UseQueryResult {
+export function useQuery(
+  settingsStore: UseSettingsStoreResult,
+): UseQueryResult {
   const [state, dispatch] = useMachine();
-  const settingsStore = useSettingsStore();
   const sessionStore = useSessionStore();
   const offlineCache = useOfflineCache();
   // Any dispatcher of SESSION_EXPIRED must abort abortControllerRef.current

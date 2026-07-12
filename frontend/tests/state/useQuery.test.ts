@@ -12,6 +12,9 @@ import type {
 import { generateFollowUpChips } from "../../src/state/chips";
 import { useOfflineCache } from "../../src/state/offlineCache";
 import { useSessionStore } from "../../src/state/sessionStore";
+import type { UseSettingsStoreResult } from "../../src/state/settingsStore";
+import { useSettingsStore } from "../../src/state/settingsStore";
+import type { UseQueryResult } from "../../src/state/useQuery";
 import { useQuery } from "../../src/state/useQuery";
 
 const NOW = new Date("2026-07-10T12:00:00Z");
@@ -160,6 +163,25 @@ function answerPayload(overrides: Partial<AnswerPayload> = {}): AnswerPayload {
   };
 }
 
+/**
+ * App.tsx owns a single settings-store instance and passes it into
+ * useQuery -- these helpers mirror that wiring so tests exercise the same
+ * shared-instance shape production code does, rather than each hook
+ * minting its own independent (and divergent) settings state.
+ */
+function renderUseQuery() {
+  return renderHook(() => useQuery(useSettingsStore()));
+}
+
+function renderUseQueryWithSettings() {
+  return renderHook(() => {
+    const settings = useSettingsStore();
+    return { settings, ...useQuery(settings) } satisfies UseQueryResult & {
+      settings: UseSettingsStoreResult;
+    };
+  });
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
@@ -183,7 +205,7 @@ describe("submitQuery request building", () => {
     const calls = stubFetchQueue([
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQueryWithSettings();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -198,11 +220,27 @@ describe("submitQuery request building", () => {
     });
   });
 
+  it("reflects a default location set after mount, not just the one present at initial render", async () => {
+    const calls = stubFetchQueue([
+      (signal) => sseStream([], signal, { keepOpen: true }),
+    ]);
+    const { result } = renderUseQueryWithSettings();
+
+    act(() => {
+      result.current.settings.setDefaultLocation(LOCATION);
+    });
+    act(() => {
+      result.current.submitQuery("what about this weekend?");
+    });
+
+    expect(calls[0].request.default_location).toEqual(LOCATION);
+  });
+
   it("includes resolved_location when passed", async () => {
     const calls = stubFetchQueue([
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?", {
@@ -217,7 +255,7 @@ describe("submitQuery request building", () => {
     const calls = stubFetchQueue([
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -242,7 +280,7 @@ describe("machine wiring", () => {
           { keepOpen: true },
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -272,7 +310,7 @@ describe("machine wiring", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -297,7 +335,7 @@ describe("machine wiring", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?");
@@ -322,7 +360,7 @@ describe("machine wiring", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -338,7 +376,7 @@ describe("cancellation", () => {
       (signal) => sseStream([], signal, { keepOpen: true }),
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("first query");
@@ -360,7 +398,7 @@ describe("cancellation", () => {
     const calls = stubFetchQueue([
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result, unmount } = renderHook(() => useQuery());
+    const { result, unmount } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -378,7 +416,7 @@ describe("offline cache", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -409,7 +447,7 @@ describe("session carry-over", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather this evening?");
@@ -439,7 +477,7 @@ describe("session carry-over", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather this week?");
@@ -459,7 +497,7 @@ describe("session carry-over", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather right now?");
@@ -488,7 +526,7 @@ describe("session carry-over", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("compare Austin and Dallas");
@@ -513,7 +551,7 @@ describe("session carry-over", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("compare Austin and Dallas");
@@ -530,7 +568,7 @@ describe("session carry-over", () => {
       (signal) =>
         sseStream([JSON.stringify({ type: "answer", data: answer })], signal),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -557,7 +595,7 @@ describe("session carry-over", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?");
@@ -585,7 +623,7 @@ describe("session carry-over", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -620,7 +658,7 @@ describe("error actions", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -649,7 +687,7 @@ describe("error actions", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -665,7 +703,7 @@ describe("error actions", () => {
 
 describe("showCached", () => {
   it("is a no-op when the offline cache is empty", () => {
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
     const stateBefore = result.current.state;
 
     act(() => {
@@ -693,7 +731,7 @@ describe("showCached", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("what's the weather?");
@@ -730,7 +768,7 @@ describe("session expiry", () => {
     );
     // Mount while the session is still fresh, so loadSession()'s own
     // mount-time check does not fire -- isolates the on-interaction check.
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     // The tab sits idle for 31 minutes with no interaction.
     vi.setSystemTime(new Date(NOW.getTime() + 31 * 60 * 1000));
@@ -769,7 +807,7 @@ describe("selectCandidate", () => {
         ),
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?");
@@ -799,7 +837,7 @@ describe("selectCandidate", () => {
         ),
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?");
@@ -827,7 +865,7 @@ describe("selectCandidate", () => {
         ),
       (signal) => sseStream([], signal, { keepOpen: true }),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?");
@@ -868,7 +906,7 @@ describe("selectCandidate", () => {
           signal,
         ),
     ]);
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     act(() => {
       result.current.submitQuery("Springfield weather?");
@@ -885,7 +923,7 @@ describe("selectCandidate", () => {
   });
 
   it("throws when called while the machine is not in clarify state", () => {
-    const { result } = renderHook(() => useQuery());
+    const { result } = renderUseQuery();
 
     expect(() => result.current.selectCandidate(LOCATION)).toThrow();
   });

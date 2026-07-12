@@ -3,8 +3,8 @@ import { useSettingsStore } from "./state/settingsStore";
 import { useQuery } from "./state/useQuery";
 
 function App() {
-  const query = useQuery();
   const settings = useSettingsStore();
+  const query = useQuery(settings);
 
   return <AppShell query={query} settings={settings} />;
 }
