@@ -21,6 +21,17 @@ _DEFAULT_MODELS = {
 }
 
 
+def build_cors_origins() -> list[str]:
+    """CORSMiddleware's allow_origins list (main.py). Strips a trailing
+    slash from FRONTEND_ORIGIN -- browsers never send one in the Origin
+    header, but it's an easy value to mistype in a dashboard env var, and
+    CORSMiddleware does exact string matching (Starlette returns a bare
+    400 on preflight for any mismatch, trailing slash included).
+    """
+    origin = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
+    return [origin.rstrip("/")]
+
+
 def build_provider_registry() -> dict[str, WeatherProvider]:
     """The real (v1) dict[str, WeatherProvider] plan()/execute() expect
     (Tasks 15.3/16.2). OpenMeteoProvider is listed first -- select_provider's

@@ -1,11 +1,29 @@
 import pytest
 
-from skycast.api.wiring import build_llm_client, build_provider_registry
+from skycast.api.wiring import build_cors_origins, build_llm_client, build_provider_registry
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.gemini_client import GeminiLLMClient
 from skycast.llm.openai_client import OpenAILLMClient
 from skycast.providers.in_memory import InMemoryProvider
 from skycast.providers.open_meteo.provider import OpenMeteoProvider
+
+
+def test_build_cors_origins_defaults_to_localhost_when_unset(monkeypatch) -> None:
+    monkeypatch.delenv("FRONTEND_ORIGIN", raising=False)
+
+    assert build_cors_origins() == ["http://localhost:5173"]
+
+
+def test_build_cors_origins_strips_trailing_slash(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://skycast-pi-jet.vercel.app/")
+
+    assert build_cors_origins() == ["https://skycast-pi-jet.vercel.app"]
+
+
+def test_build_cors_origins_leaves_no_trailing_slash_unchanged(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://skycast-pi-jet.vercel.app")
+
+    assert build_cors_origins() == ["https://skycast-pi-jet.vercel.app"]
 
 
 def test_build_provider_registry_returns_open_meteo_and_in_memory() -> None:
