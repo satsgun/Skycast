@@ -26,12 +26,21 @@ class Success(BaseModel):
 
 
 class NeedsClarification(BaseModel):
-    """A geocode step matched 2+ candidates; ask the user which one."""
+    """A geocode step matched 2+ candidates; ask the user which one.
+
+    `resolved` carries every other chain's already-known Location in this
+    same execute() pass (both freshly single-match-geocoded siblings and
+    chains that skipped geocoding entirely because they were pre-resolved
+    from an earlier disambiguation round), keyed by original location
+    name, so a multi-location plan doesn't lose that progress just because
+    one chain still needs a user's input.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     candidates: list[Location] = Field(min_length=2)
     for_location_name: str
+    resolved: dict[str, Location] = Field(default_factory=dict)
 
 
 class Failed(BaseModel):

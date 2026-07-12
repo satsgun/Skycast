@@ -37,6 +37,9 @@ async def execute(
         )
         decisive = _prioritize(geocode_results)
         if decisive is not None:
+            if isinstance(decisive, NeedsClarification):
+                resolved = _resolved_locations(forecast_calls, geocode_calls, geocode_results)
+                decisive = decisive.model_copy(update={"resolved": resolved})
             return decisive
     else:
         geocode_results = []
@@ -162,6 +165,33 @@ def _prioritize(outcomes: list) -> Failed | NeedsClarification | None:
     if other_failures:
         return other_failures[0]
     return None
+
+
+def _resolved_locations(
+    forecast_calls: list[PlannedCall],
+    geocode_calls: list[PlannedCall | None],
+    geocode_results: list[Location | Failed | NeedsClarification],
+) -> dict[str, Location]:
+    """The name->Location map to carry into a NeedsClarification's
+    `resolved` field: every OTHER chain's already-known location, from
+    both a pre-resolved chain carried over from an earlier round
+    (geocode_call is None, but the FETCH_FORECAST call still has its
+    original location_name -- see plan.py) and a freshly single-match
+    -geocoded sibling this round. Deliberately excludes still-ambiguous
+    and Failed siblings -- see execute_stage module docstring/Failed's
+    own "all-or-nothing" note; that scope boundary is untouched here.
+    """
+    resolved: dict[str, Location] = {}
+    remaining = iter(geocode_results)
+    for call, geocode_call in zip(forecast_calls, geocode_calls):
+        if geocode_call is None:
+            if call.location_name is not None:
+                resolved[call.location_name] = call.location
+        else:
+            result = next(remaining)
+            if isinstance(result, Location):
+                resolved[geocode_call.location_name] = result
+    return resolved
 
 
 def _geocode_label(geocode_calls: list[PlannedCall]) -> str:

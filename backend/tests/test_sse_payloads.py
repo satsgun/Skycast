@@ -89,30 +89,39 @@ def test_step_payload_round_trips_through_json() -> None:
 
 
 def test_clarify_payload_constructs_with_two_candidates() -> None:
-    payload = ClarifyPayload(candidates=[_location("1"), _location("2")])
+    payload = ClarifyPayload(candidates=[_location("1"), _location("2")], for_location_name="X")
     assert len(payload.candidates) == 2
 
 
 def test_clarify_payload_rejects_zero_candidates() -> None:
     with pytest.raises(ValidationError):
-        ClarifyPayload(candidates=[])
+        ClarifyPayload(candidates=[], for_location_name="X")
 
 
 def test_clarify_payload_rejects_one_candidate() -> None:
     with pytest.raises(ValidationError):
-        ClarifyPayload(candidates=[_location("1")])
+        ClarifyPayload(candidates=[_location("1")], for_location_name="X")
 
 
 def test_clarify_payload_is_frozen() -> None:
-    payload = ClarifyPayload(candidates=[_location("1"), _location("2")])
+    payload = ClarifyPayload(candidates=[_location("1"), _location("2")], for_location_name="X")
     with pytest.raises(ValidationError):
         payload.candidates = [_location("3"), _location("4")]
 
 
 def test_clarify_payload_round_trips_through_json() -> None:
-    payload = ClarifyPayload(candidates=[_location("1"), _location("2")])
+    payload = ClarifyPayload(
+        candidates=[_location("1"), _location("2")],
+        for_location_name="X",
+        resolved={"Y": _location("3")},
+    )
     restored = ClarifyPayload.model_validate_json(payload.model_dump_json())
     assert restored == payload
+
+
+def test_clarify_payload_resolved_defaults_to_empty_dict() -> None:
+    payload = ClarifyPayload(candidates=[_location("1"), _location("2")], for_location_name="X")
+    assert payload.resolved == {}
 
 
 def test_reading_locator_constructs_with_current_block_and_no_index() -> None:

@@ -47,10 +47,19 @@ def test_step_constructor_produces_matching_type_and_payload() -> None:
 
 def test_clarify_constructor_produces_matching_type_and_payload() -> None:
     candidates = [_location("1"), _location("2")]
-    event = SSEEvent.clarify(candidates)
+    event = SSEEvent.clarify(candidates, for_location_name="X")
     assert event.type is SSEEventType.CLARIFY
     assert isinstance(event.data, ClarifyPayload)
     assert event.data.candidates == candidates
+    assert event.data.for_location_name == "X"
+    assert event.data.resolved == {}
+
+
+def test_clarify_constructor_forwards_resolved() -> None:
+    candidates = [_location("1"), _location("2")]
+    resolved = {"Miami": _location("Miami")}
+    event = SSEEvent.clarify(candidates, for_location_name="X", resolved=resolved)
+    assert event.data.resolved == resolved
 
 
 def test_answer_constructor_produces_matching_type_and_payload() -> None:
@@ -74,7 +83,9 @@ def test_mismatched_type_and_data_raises_validation_error() -> None:
     with pytest.raises(ValidationError):
         SSEEvent(
             type=SSEEventType.STEP,
-            data=ClarifyPayload(candidates=[_location("1"), _location("2")]),
+            data=ClarifyPayload(
+                candidates=[_location("1"), _location("2")], for_location_name="X"
+            ),
         )
 
 
@@ -92,7 +103,11 @@ def test_step_event_round_trips_through_json() -> None:
 
 
 def test_clarify_event_round_trips_through_json() -> None:
-    event = SSEEvent.clarify([_location("1"), _location("2")])
+    event = SSEEvent.clarify(
+        [_location("1"), _location("2")],
+        for_location_name="X",
+        resolved={"Miami": _location("Miami")},
+    )
     restored = SSEEvent.model_validate_json(event.model_dump_json())
     assert restored == event
     assert isinstance(restored.data, ClarifyPayload)

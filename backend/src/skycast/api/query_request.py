@@ -15,14 +15,16 @@ from skycast.pipeline.session_context import SessionContext
 class QueryRequest(BaseModel):
     """POST /query body.
 
-    `resolved_location` is a disambiguation re-query: the coordinates
-    the user tapped on a prior `clarify`. A one-shot per-request
-    override, not session carry-over -- it does not belong in
-    SessionContext, and this class only carries it faithfully. Intended
-    mechanism (implemented by run_query, Task 18.3): run_query supplies
-    `resolved_location` as an already-coordinates target, so it flows
-    through plan()'s existing skip-geocode path -- no new plan()
-    parameter, no location_names mutation.
+    `resolved_locations` is a disambiguation re-query: a name->Location
+    map of every location the user has already resolved in this
+    multi-round clarify sub-flow (fix #90) -- both a prior round's picks
+    and the one just tapped on the latest `clarify`, keyed by the
+    original query-named location they answer for. A one-shot
+    per-request override, not session carry-over -- it does not belong
+    in SessionContext, and this class only carries it faithfully.
+    run_query passes it straight through to plan()'s own
+    resolved_locations parameter, which skips geocoding for any matching
+    name and geocodes the rest as usual.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -30,13 +32,13 @@ class QueryRequest(BaseModel):
     query: str = Field(min_length=1)
     now: AwareDatetime
     default_location: Location | None = None
-    resolved_location: Location | None = None
+    resolved_locations: dict[str, Location] = Field(default_factory=dict)
     units: str | None = None
 
     def to_session_context(self) -> SessionContext:
         """Builds the SessionContext pipeline stages consume.
 
-        Deliberately drops `resolved_location` -- SessionContext has no
+        Deliberately drops `resolved_locations` -- SessionContext has no
         field for it (see class docstring); it isn't session carry-over.
         `carried_location_name`/`carried_window` are left at their
         SessionContext defaults (None) -- QueryRequest has no source

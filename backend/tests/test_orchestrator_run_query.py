@@ -106,7 +106,7 @@ def _full_capabilities() -> ProviderCapabilities:
 
 class _GeocodeSpyProvider(InMemoryProvider):
     async def geocode(self, name: str) -> list[Location]:
-        raise AssertionError("geocode must not be called when resolved_location is set")
+        raise AssertionError("geocode must not be called for a name already in resolved_locations")
 
 
 class _BuggyForecastProvider(WeatherProvider):
@@ -171,11 +171,16 @@ def test_clarify_path_ambiguous_location() -> None:
     _assert_terminal_invariant(events)
     assert events[-1].type is SSEEventType.CLARIFY
     assert len(events[-1].data.candidates) == 3
+    assert events[-1].data.for_location_name == "Springfield"
+    assert events[-1].data.resolved == {}
     assert call_log == ["emit_data_needs"]
 
 
 def test_disambiguation_requery_when_spec_already_has_no_location_name() -> None:
-    request = _request(query="What's the weather there?", resolved_location=_springfield_il())
+    request = _request(
+        query="What's the weather there?",
+        resolved_locations={"Springfield": _springfield_il()},
+    )
     providers = {"in-memory": _GeocodeSpyProvider()}
     llm = _llm_client(_spec(location_names=[]))
 
@@ -187,7 +192,10 @@ def test_disambiguation_requery_when_spec_already_has_no_location_name() -> None
 
 
 def test_disambiguation_requery_overrides_named_location_and_skips_geocode() -> None:
-    request = _request(query="What's the weather in Springfield?", resolved_location=_springfield_il())
+    request = _request(
+        query="What's the weather in Springfield?",
+        resolved_locations={"Springfield": _springfield_il()},
+    )
     providers = {"in-memory": _GeocodeSpyProvider()}
     llm = _llm_client(_spec(location_names=["Springfield"]))
 
@@ -196,6 +204,59 @@ def test_disambiguation_requery_overrides_named_location_and_skips_geocode() -> 
     _assert_terminal_invariant(events)
     assert events[-1].type is SSEEventType.ANSWER
     assert events[-1].data.card.forecasts[0].location.admin1 == "Illinois"
+
+
+def test_comparison_one_ambiguous_one_resolved_carries_resolved_sibling_forward() -> None:
+    """The central regression test for fix #90: round 1's clarify must
+    not drop Mumbai just because Delhi needs disambiguation, and round
+    2's re-query (carrying both the resolved sibling and the newly
+    -picked candidate) must complete the comparison with both forecasts
+    -- and must not re-geocode either name.
+    """
+    mumbai = Location(
+        id="in-memory:mumbai-in", name="Mumbai", latitude=19.0760, longitude=72.8777,
+        country="India", country_code="IN", timezone="Asia/Kolkata",
+    )
+    delhi = Location(
+        id="in-memory:delhi-in", name="Delhi", latitude=28.65, longitude=77.23,
+        country="India", country_code="IN", admin1="Delhi", timezone="Asia/Kolkata",
+    )
+    delhi_us = Location(
+        id="in-memory:delhi-us", name="Delhi", latitude=42.27, longitude=-74.91,
+        country="United States", country_code="US", admin1="New York", timezone="America/New_York",
+    )
+    providers = {
+        "in-memory": InMemoryProvider(
+            locations={"mumbai": [mumbai], "delhi": [delhi, delhi_us]}
+        )
+    }
+    llm = _llm_client(_spec(location_names=["Mumbai", "Delhi"], intent=QueryIntent.COMPARISON))
+
+    round1 = _run(
+        _collect(
+            run_query(
+                _request(query="Compare the weather in Mumbai and Delhi"), providers, llm
+            )
+        )
+    )
+
+    _assert_terminal_invariant(round1)
+    assert round1[-1].type is SSEEventType.CLARIFY
+    assert round1[-1].data.for_location_name == "Delhi"
+    assert round1[-1].data.resolved == {"Mumbai": mumbai}
+
+    round2_providers = {"in-memory": _GeocodeSpyProvider()}
+    round2_request = _request(
+        query="Compare the weather in Mumbai and Delhi",
+        resolved_locations={**round1[-1].data.resolved, "Delhi": delhi},
+    )
+    round2 = _run(_collect(run_query(round2_request, round2_providers, llm)))
+
+    _assert_terminal_invariant(round2)
+    assert round2[-1].type is SSEEventType.ANSWER
+    forecasts = round2[-1].data.card.forecasts
+    assert [f.location.name for f in forecasts] == ["Mumbai", "Delhi"]
+    assert forecasts[1].location.admin1 == "Delhi"
 
 
 def test_not_found_location_maps_to_not_found_error() -> None:

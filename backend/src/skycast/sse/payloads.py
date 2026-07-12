@@ -35,12 +35,19 @@ class StepPayload(BaseModel):
 class ClarifyPayload(BaseModel):
     """Terminal: multiple geocode matches; the FE renders these as one-tap
     options. Fewer than 2 candidates is a bug -- a single match wouldn't
-    need clarification.
+    need clarification. `for_location_name` names which query-named
+    location `candidates` is for (a multi-location plan may have other,
+    still-unresolved names). `resolved` carries every other location
+    already known this round (fix #90) -- the re-query must send these
+    back via QueryRequest.resolved_locations alongside the newly-picked
+    candidate, or they're lost.
     """
 
     model_config = ConfigDict(frozen=True)
 
     candidates: list[Location] = Field(min_length=2)
+    for_location_name: str
+    resolved: dict[str, Location] = Field(default_factory=dict)
 
 
 class ForecastBlock(StrEnum):

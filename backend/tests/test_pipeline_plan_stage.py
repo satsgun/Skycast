@@ -171,6 +171,75 @@ def test_no_capable_provider_error_propagates_unmodified() -> None:
     assert exc_info.value.reason == "missing_variables"
 
 
+def test_resolved_locations_for_one_of_two_names_produces_mixed_chain() -> None:
+    spec = _spec(location_names=["Mumbai", "Delhi"], intent=QueryIntent.COMPARISON)
+    providers = {"open-meteo": InMemoryProvider()}
+    mumbai = _location("Mumbai")
+
+    result = plan(spec, providers, resolved_locations={"Mumbai": mumbai})
+
+    assert len(result.calls) == 3
+    forecast_mumbai, geocode_delhi, forecast_delhi = result.calls
+    assert forecast_mumbai.tool is PlannedTool.FETCH_FORECAST
+    assert forecast_mumbai.location == mumbai
+    assert forecast_mumbai.location_name == "Mumbai"
+    assert forecast_mumbai.depends_on == []
+    assert geocode_delhi.tool is PlannedTool.GEOCODE
+    assert geocode_delhi.location_name == "Delhi"
+    assert forecast_delhi.depends_on == [geocode_delhi.call_id]
+
+
+def test_resolved_locations_entry_not_matching_a_name_is_ignored() -> None:
+    spec = _spec(location_names=["Hyderabad"])
+    providers = {"open-meteo": InMemoryProvider()}
+
+    result = plan(spec, providers, resolved_locations={"Springfield": _location("Springfield")})
+
+    assert len(result.calls) == 2
+    geocode, forecast = result.calls
+    assert geocode.tool is PlannedTool.GEOCODE
+    assert geocode.location_name == "Hyderabad"
+    assert forecast.depends_on == [geocode.call_id]
+
+
+def test_resolved_locations_used_as_targets_when_location_names_empty() -> None:
+    spec = _spec(location_names=[])
+    providers = {"open-meteo": InMemoryProvider()}
+    springfield = _location("Springfield")
+
+    result = plan(spec, providers, resolved_locations={"Springfield": springfield})
+
+    assert len(result.calls) == 1
+    call = result.calls[0]
+    assert call.tool is PlannedTool.FETCH_FORECAST
+    assert call.location == springfield
+    assert call.location_name == "Springfield"
+    assert call.depends_on == []
+
+
+def test_resolved_locations_wins_over_default_location_when_location_names_empty() -> None:
+    spec = _spec(location_names=[])
+    providers = {"open-meteo": InMemoryProvider()}
+    springfield = _location("Springfield")
+    default = _location("Hyderabad")
+
+    result = plan(
+        spec, providers, default_location=default, resolved_locations={"Springfield": springfield}
+    )
+
+    assert len(result.calls) == 1
+    assert result.calls[0].location == springfield
+
+
+def test_default_location_chain_has_no_location_name() -> None:
+    spec = _spec(location_names=[])
+    providers = {"open-meteo": InMemoryProvider()}
+
+    result = plan(spec, providers, default_location=_location())
+
+    assert result.calls[0].location_name is None
+
+
 def test_determinism_same_inputs_produce_equal_plan() -> None:
     spec = _spec(location_names=["Hyderabad"])
     providers = {"open-meteo": InMemoryProvider()}

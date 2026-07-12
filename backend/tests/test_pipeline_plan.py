@@ -91,6 +91,19 @@ def test_fetch_forecast_call_with_location_name_set_is_rejected() -> None:
         )
 
 
+def test_fetch_forecast_call_with_location_and_location_name_is_valid() -> None:
+    """A pre-resolved chain carried forward across a disambiguation round
+    keeps its original location_name (Task: fix #90) so a later execute()
+    pass can recover which query-named location this chain answers for.
+    """
+    call = PlannedCall(
+        call_id="forecast-1", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
+        location=_location(), location_name="Hyderabad", request=_request(),
+    )
+    assert call.location_name == "Hyderabad"
+    assert call.location is not None
+
+
 def test_fetch_forecast_call_missing_request_is_rejected() -> None:
     with pytest.raises(ValidationError):
         PlannedCall(
@@ -120,6 +133,14 @@ def test_fetch_forecast_call_round_trips_through_json() -> None:
     call = PlannedCall(
         call_id="forecast-1", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
         location=_location(), request=_request(),
+    )
+    assert PlannedCall.model_validate_json(call.model_dump_json()) == call
+
+
+def test_fetch_forecast_call_with_location_name_round_trips_through_json() -> None:
+    call = PlannedCall(
+        call_id="forecast-1", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
+        location=_location(), location_name="Hyderabad", request=_request(),
     )
     assert PlannedCall.model_validate_json(call.model_dump_json()) == call
 

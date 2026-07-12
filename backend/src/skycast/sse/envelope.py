@@ -54,9 +54,20 @@ class SSEEvent(BaseModel):
         return cls(type=SSEEventType.STEP, data=StepPayload(label=label, stage=stage))
 
     @classmethod
-    def clarify(cls, candidates: list[Location]) -> "SSEEvent":
+    def clarify(
+        cls,
+        candidates: list[Location],
+        *,
+        for_location_name: str,
+        resolved: dict[str, Location] | None = None,
+    ) -> "SSEEvent":
         return cls(
-            type=SSEEventType.CLARIFY, data=ClarifyPayload(candidates=candidates)
+            type=SSEEventType.CLARIFY,
+            data=ClarifyPayload(
+                candidates=candidates,
+                for_location_name=for_location_name,
+                resolved=resolved or {},
+            ),
         )
 
     @classmethod

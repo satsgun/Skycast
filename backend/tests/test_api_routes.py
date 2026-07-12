@@ -92,6 +92,7 @@ def test_clarify_path_streams_clarify_event(override_deps) -> None:
     events = _parse_events(response.text)
     assert events[-1].type is SSEEventType.CLARIFY
     assert len(events[-1].data.candidates) == 3
+    assert events[-1].data.for_location_name == "Springfield"
 
 
 def test_not_found_streams_error_event(override_deps) -> None:

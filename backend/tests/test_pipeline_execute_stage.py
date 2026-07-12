@@ -13,7 +13,8 @@ from skycast.domain.provider import (
 )
 from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
 from skycast.pipeline.execute_result import Failed, NeedsClarification, Success
-from skycast.pipeline.execute_stage import _prioritize, _run_with_fail_fast, execute
+from skycast.pipeline.execute_stage import _prioritize, _resolved_locations, _run_with_fail_fast, execute
+from skycast.pipeline.plan import PlannedCall, PlannedTool
 from skycast.pipeline.plan_stage import plan
 from skycast.providers.base import WeatherProvider
 from skycast.providers.errors import ProviderError
@@ -224,6 +225,79 @@ def test_comparison_ambiguous_plus_success_needs_clarification() -> None:
 
     assert isinstance(result, NeedsClarification)
     assert result.for_location_name == "Springfield"
+    # Fix #90: Miami resolved cleanly in the same pass -- it must not be
+    # silently discarded just because Springfield still needs the user.
+    assert result.resolved == {"Miami": _location("Miami", 25.7617, -80.1918)}
+
+
+def test_double_ambiguous_comparison_resolved_is_empty() -> None:
+    provider = InMemoryProvider(
+        locations={
+            "springfield": [
+                _location("Springfield", 39.78, -89.65),
+                _location("Springfield", 37.20, -93.29),
+            ],
+            "london": [
+                _location("London", 51.50, -0.12),
+                _location("London", 42.98, -81.23),
+            ],
+        }
+    )
+    providers = {"open-meteo": provider}
+    spec = _spec(location_names=["Springfield", "London"], intent=QueryIntent.COMPARISON)
+    built_plan = plan(spec, providers)
+
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+
+    assert isinstance(result, NeedsClarification)
+    assert result.for_location_name == "Springfield"
+    assert result.resolved == {}
+
+
+def test_resolved_excludes_failed_sibling() -> None:
+    provider = InMemoryProvider(
+        locations={
+            "springfield": [
+                _location("Springfield", 39.78, -89.65),
+                _location("Springfield", 37.20, -93.29),
+            ],
+            # "Nowhereville" deliberately absent -> zero matches, NOT_FOUND
+        }
+    )
+    providers = {"open-meteo": provider}
+    spec = _spec(location_names=["Springfield", "Nowhereville"], intent=QueryIntent.COMPARISON)
+    built_plan = plan(spec, providers)
+
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+
+    assert isinstance(result, NeedsClarification)
+    assert result.resolved == {}
+
+
+def test_carries_forward_previously_resolved_location_through_pre_resolved_chain() -> None:
+    """A location resolved in an earlier round comes back as a
+    pre-resolved (geocode-skipping) chain -- its name must still surface
+    in `resolved` on this round, or it would vanish the moment a sibling
+    is ALSO ambiguous (fix #90's core correctness requirement).
+    """
+    mumbai = _location("Mumbai", 19.0760, 72.8777)
+    provider = InMemoryProvider(
+        locations={
+            "delhi": [
+                _location("Delhi", 28.65, 77.23),
+                _location("Delhi", 42.27, -74.91),
+            ],
+        }
+    )
+    providers = {"open-meteo": provider}
+    spec = _spec(location_names=["Mumbai", "Delhi"], intent=QueryIntent.COMPARISON)
+    built_plan = plan(spec, providers, resolved_locations={"Mumbai": mumbai})
+
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+
+    assert isinstance(result, NeedsClarification)
+    assert result.for_location_name == "Delhi"
+    assert result.resolved == {"Mumbai": mumbai}
 
 
 class _SlowThenClarifyFastFailProvider(WeatherProvider):
@@ -336,6 +410,56 @@ def test_prioritize_first_in_order_tie_break() -> None:
     second = Failed(kind=ErrorKind.INTERNAL, message="second")
 
     assert _prioritize([first, second]) is first
+
+
+# --- _resolved_locations unit tests ---
+
+
+def test_resolved_locations_pairs_named_geocode_results() -> None:
+    forecast = PlannedCall(
+        call_id="forecast-0", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
+        depends_on=["geocode-0"],
+        request=ForecastRequest(granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE}),
+    )
+    geocode = PlannedCall(
+        call_id="geocode-0", tool=PlannedTool.GEOCODE, provider="open-meteo", location_name="Miami",
+    )
+    miami = _location("Miami", 25.7617, -80.1918)
+
+    result = _resolved_locations([forecast], [geocode], [miami])
+
+    assert result == {"Miami": miami}
+
+
+def test_resolved_locations_includes_pre_resolved_chain_with_name() -> None:
+    mumbai = _location("Mumbai", 19.0760, 72.8777)
+    forecast = PlannedCall(
+        call_id="forecast-0", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
+        location=mumbai, location_name="Mumbai",
+        request=ForecastRequest(granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE}),
+    )
+
+    result = _resolved_locations([forecast], [None], [])
+
+    assert result == {"Mumbai": mumbai}
+
+
+def test_resolved_locations_excludes_ambiguous_and_failed_siblings() -> None:
+    forecast = PlannedCall(
+        call_id="forecast-0", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
+        depends_on=["geocode-0"],
+        request=ForecastRequest(granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE}),
+    )
+    geocode = PlannedCall(
+        call_id="geocode-0", tool=PlannedTool.GEOCODE, provider="open-meteo", location_name="Springfield",
+    )
+    clarify = NeedsClarification(
+        candidates=[_location("A"), _location("B")], for_location_name="Springfield"
+    )
+
+    result = _resolved_locations([forecast], [geocode], [clarify])
+
+    assert result == {}
 
 
 # --- _run_with_fail_fast unit test ---

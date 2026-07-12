@@ -25,7 +25,7 @@ def test_constructs_with_only_required_fields() -> None:
     assert request.query == "Do I need an umbrella?"
     assert request.now == _now()
     assert request.default_location is None
-    assert request.resolved_location is None
+    assert request.resolved_locations == {}
     assert request.units is None
 
 
@@ -34,13 +34,29 @@ def test_constructs_with_all_fields() -> None:
         query="Is it warmer in Miami or Seattle?",
         now=_now(),
         default_location=_location("Hyderabad"),
-        resolved_location=_location("Springfield"),
+        resolved_locations={"Springfield": _location("Springfield")},
         units="celsius",
     )
 
     assert request.default_location == _location("Hyderabad")
-    assert request.resolved_location == _location("Springfield")
+    assert request.resolved_locations == {"Springfield": _location("Springfield")}
     assert request.units == "celsius"
+
+
+def test_constructs_with_multiple_resolved_locations() -> None:
+    request = QueryRequest(
+        query="Compare the weather in Mumbai and Delhi",
+        now=_now(),
+        resolved_locations={
+            "Mumbai": _location("Mumbai"),
+            "Delhi": _location("Delhi"),
+        },
+    )
+
+    assert request.resolved_locations == {
+        "Mumbai": _location("Mumbai"),
+        "Delhi": _location("Delhi"),
+    }
 
 
 def test_rejects_empty_query() -> None:
@@ -65,7 +81,7 @@ def test_round_trips_through_json() -> None:
         query="Is it warmer in Miami or Seattle?",
         now=_now(),
         default_location=_location("Hyderabad"),
-        resolved_location=_location("Springfield"),
+        resolved_locations={"Springfield": _location("Springfield")},
         units="celsius",
     )
 
@@ -100,10 +116,12 @@ def test_to_session_context_defaults_carried_fields_to_none() -> None:
     assert ctx.carried_window is None
 
 
-def test_to_session_context_drops_resolved_location() -> None:
+def test_to_session_context_drops_resolved_locations() -> None:
     without = QueryRequest(query="Will it rain today?", now=_now())
     with_resolved = QueryRequest(
-        query="Will it rain today?", now=_now(), resolved_location=_location("Springfield")
+        query="Will it rain today?",
+        now=_now(),
+        resolved_locations={"Springfield": _location("Springfield")},
     )
 
     assert without.to_session_context() == with_resolved.to_session_context()

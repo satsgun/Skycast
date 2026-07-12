@@ -90,11 +90,15 @@ def clarify_path_events() -> list[SSEEvent]:
             longitude=-72.5898,
         ),
     ]
+    # A comparison query ("Compare Springfield and Miami") where Miami
+    # already resolved -- demonstrates for_location_name/resolved (fix
+    # #90), not just a single-location clarify.
+    miami = Location(id="4", name="Miami", country_code="US", latitude=25.7617, longitude=-80.1918)
     return [
         SSEEvent.step("Understanding your question...", PipelineStage.DECOMPOSE),
         SSEEvent.step("Working out what to fetch...", PipelineStage.PLAN),
-        SSEEvent.step("Looking up Springfield...", PipelineStage.EXECUTE_GEOCODE),
-        SSEEvent.clarify(candidates),
+        SSEEvent.step("Looking up Springfield, Miami...", PipelineStage.EXECUTE_GEOCODE),
+        SSEEvent.clarify(candidates, for_location_name="Springfield", resolved={"Miami": miami}),
     ]
 
 
@@ -141,9 +145,11 @@ The frontend dispatches on the `type` field from one `onmessage` handler
 
 ### `clarify` -- terminal: ambiguous location
 
-| Field        | Type         | Notes |
-|--------------|--------------|-------|
-| `candidates` | `Location[]` | 2 or more ambiguous geocode matches. The FE renders these as one-tap options. |
+| Field               | Type                   | Notes |
+|---------------------|------------------------|-------|
+| `candidates`        | `Location[]`           | 2 or more ambiguous geocode matches. The FE renders these as one-tap options. |
+| `for_location_name` | string                 | Which query-named location `candidates` is for. A multi-location plan (e.g. a comparison) may have other, still-unresolved names -- this says which one the user is being asked about. |
+| `resolved`          | `{{[name: string]: Location}}` | Every other location already known this round, keyed by its original query name. The re-query (`POST /query`) must send these back via `resolved_locations` alongside the newly-picked candidate, or they're lost. |
 
 ### `answer` -- terminal: resolved answer
 

@@ -34,9 +34,11 @@ The frontend dispatches on the `type` field from one `onmessage` handler
 
 ### `clarify` -- terminal: ambiguous location
 
-| Field        | Type         | Notes |
-|--------------|--------------|-------|
-| `candidates` | `Location[]` | 2 or more ambiguous geocode matches. The FE renders these as one-tap options. |
+| Field               | Type                   | Notes |
+|---------------------|------------------------|-------|
+| `candidates`        | `Location[]`           | 2 or more ambiguous geocode matches. The FE renders these as one-tap options. |
+| `for_location_name` | string                 | Which query-named location `candidates` is for. A multi-location plan (e.g. a comparison) may have other, still-unresolved names -- this says which one the user is being asked about. |
+| `resolved`          | `{[name: string]: Location}` | Every other location already known this round, keyed by its original query name. The re-query (`POST /query`) must send these back via `resolved_locations` alongside the newly-picked candidate, or they're lost. |
 
 ### `answer` -- terminal: resolved answer
 
@@ -86,9 +88,9 @@ data: {"type":"step","data":{"label":"Understanding your question...","stage":"d
 
 data: {"type":"step","data":{"label":"Working out what to fetch...","stage":"plan"}}
 
-data: {"type":"step","data":{"label":"Looking up Springfield...","stage":"execute_geocode"}}
+data: {"type":"step","data":{"label":"Looking up Springfield, Miami...","stage":"execute_geocode"}}
 
-data: {"type":"clarify","data":{"candidates":[{"id":"1","name":"Springfield","latitude":39.7817,"longitude":-89.6501,"country":null,"country_code":"US","admin1":"Illinois","admin2":null,"population":null,"timezone":null},{"id":"2","name":"Springfield","latitude":37.209,"longitude":-93.2923,"country":null,"country_code":"US","admin1":"Missouri","admin2":null,"population":null,"timezone":null},{"id":"3","name":"Springfield","latitude":42.1015,"longitude":-72.5898,"country":null,"country_code":"US","admin1":"Massachusetts","admin2":null,"population":null,"timezone":null}]}}
+data: {"type":"clarify","data":{"candidates":[{"id":"1","name":"Springfield","latitude":39.7817,"longitude":-89.6501,"country":null,"country_code":"US","admin1":"Illinois","admin2":null,"population":null,"timezone":null},{"id":"2","name":"Springfield","latitude":37.209,"longitude":-93.2923,"country":null,"country_code":"US","admin1":"Missouri","admin2":null,"population":null,"timezone":null},{"id":"3","name":"Springfield","latitude":42.1015,"longitude":-72.5898,"country":null,"country_code":"US","admin1":"Massachusetts","admin2":null,"population":null,"timezone":null}],"for_location_name":"Springfield","resolved":{"Miami":{"id":"4","name":"Miami","latitude":25.7617,"longitude":-80.1918,"country":null,"country_code":"US","admin1":null,"admin2":null,"population":null,"timezone":null}}}}
 
 ```
 

@@ -72,6 +72,23 @@ def test_needs_clarification_with_two_candidates_is_valid() -> None:
     assert result.for_location_name == "Springfield"
 
 
+def test_needs_clarification_resolved_defaults_to_empty_dict() -> None:
+    result = NeedsClarification(
+        candidates=[_location(), _location()], for_location_name="Springfield"
+    )
+    assert result.resolved == {}
+
+
+def test_needs_clarification_resolved_carries_sibling_locations() -> None:
+    miami = _location("Miami")
+    result = NeedsClarification(
+        candidates=[_location(), _location()],
+        for_location_name="Springfield",
+        resolved={"Miami": miami},
+    )
+    assert result.resolved == {"Miami": miami}
+
+
 def test_needs_clarification_with_fewer_than_two_candidates_is_rejected() -> None:
     with pytest.raises(ValidationError):
         NeedsClarification(candidates=[_location()], for_location_name="Springfield")
@@ -92,7 +109,9 @@ def test_needs_clarification_is_frozen() -> None:
 
 def test_needs_clarification_round_trips_through_json() -> None:
     result = NeedsClarification(
-        candidates=[_location(), _location()], for_location_name="Springfield"
+        candidates=[_location(), _location()],
+        for_location_name="Springfield",
+        resolved={"Miami": _location("Miami")},
     )
     assert NeedsClarification.model_validate_json(result.model_dump_json()) == result
 

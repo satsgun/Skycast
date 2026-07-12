@@ -20,11 +20,9 @@ import asyncio
 from collections.abc import AsyncIterator
 
 from skycast.api.query_request import QueryRequest
-from skycast.domain.location import Location
 from skycast.llm.client import LLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
 from skycast.orchestrator.error_mapping import map_error
-from skycast.pipeline.data_needs import DataNeedsSpec
 from skycast.pipeline.decompose import decompose
 from skycast.pipeline.errors import NoCapableProviderError, NoLocationError
 from skycast.pipeline.execute_result import ExecutionResult, Failed, NeedsClarification, Success
@@ -75,9 +73,13 @@ async def _run_query_inner(
         return
 
     yield SSEEvent.step(_PLANNING_LABEL, PipelineStage.PLAN)
-    plan_spec, default_location = _resolve_plan_inputs(spec, request, ctx.default_location)
     try:
-        tool_plan = plan(plan_spec, providers, default_location=default_location)
+        tool_plan = plan(
+            spec,
+            providers,
+            default_location=ctx.default_location,
+            resolved_locations=request.resolved_locations,
+        )
     except (NoLocationError, NoCapableProviderError) as exc:
         payload = map_error(exc)
         yield SSEEvent.error(kind=payload.kind, message=payload.message)
@@ -90,7 +92,9 @@ async def _run_query_inner(
 
     match result:
         case NeedsClarification():
-            yield SSEEvent.clarify(candidates=result.candidates)
+            yield SSEEvent.clarify(
+                result.candidates, for_location_name=result.for_location_name, resolved=result.resolved
+            )
             return
         case Failed():
             yield SSEEvent.error(kind=result.kind, message=result.message)
@@ -106,22 +110,6 @@ async def _run_query_inner(
         yield SSEEvent.error(kind=payload.kind, message=payload.message)
         return
     yield SSEEvent.answer(answer.text, answer.card)
-
-
-def _resolve_plan_inputs(
-    spec: DataNeedsSpec, request: QueryRequest, ctx_default_location: Location | None
-) -> tuple[DataNeedsSpec, Location | None]:
-    """Disambiguation re-query (resolved_location set): reuses plan()'s
-    existing skip-geocode path -- default_location -- rather than adding
-    a new plan() parameter. Clears location_names on a *derived copy* of
-    spec (DataNeedsSpec is frozen; nothing is mutated) so plan() falls
-    through to its default_location branch and treats resolved_location
-    as the (only) target, overriding whatever name decompose produced.
-    resolved_location wins over the request's own default_location.
-    """
-    if request.resolved_location is None:
-        return spec, ctx_default_location
-    return spec.model_copy(update={"location_names": []}), request.resolved_location
 
 
 async def _stream_execute(

@@ -58,7 +58,7 @@ def test_step_event_round_trips_through_wire_format() -> None:
 
 
 def test_clarify_event_round_trips_through_wire_format() -> None:
-    event = SSEEvent.clarify([_location("1"), _location("2")])
+    event = SSEEvent.clarify([_location("1"), _location("2")], for_location_name="X")
     wire = serialize_sse_event(event)
     restored = SSEEvent.model_validate_json(_data_json(wire))
     assert restored == event

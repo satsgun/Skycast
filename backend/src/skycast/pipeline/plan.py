@@ -26,12 +26,15 @@ class PlannedTool(StrEnum):
 class PlannedCall(BaseModel):
     """One tool invocation in a ToolPlan.
 
-    location_name is set for a GEOCODE call (the name to resolve) and
-    must be None for FETCH_FORECAST. For FETCH_FORECAST, request is
-    always the executable request; location is set only when coords are
-    already known and geocode was skipped -- whether the alternative
-    (a geocode dependency will supply the location) holds is a
-    cross-call fact, checked by ToolPlan, not here.
+    location_name is set for a GEOCODE call (the name to resolve). For
+    FETCH_FORECAST, request is always the executable request; location is
+    set only when coords are already known and geocode was skipped --
+    whether the alternative (a geocode dependency will supply the
+    location) holds is a cross-call fact, checked by ToolPlan, not here.
+    A FETCH_FORECAST call may also carry location_name alongside location
+    -- the query-named location this pre-resolved chain answers for --
+    but only together with location; never alone (that shape stays a
+    GEOCODE-call-only concept).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -52,8 +55,10 @@ class PlannedCall(BaseModel):
             if self.location is not None or self.request is not None:
                 raise ValueError("a GEOCODE call must not set location or request")
         else:
-            if self.location_name is not None:
-                raise ValueError("a FETCH_FORECAST call must not set location_name")
+            if self.location_name is not None and self.location is None:
+                raise ValueError(
+                    "a FETCH_FORECAST call may only set location_name together with location"
+                )
             if self.request is None:
                 raise ValueError("a FETCH_FORECAST call requires request")
         return self
