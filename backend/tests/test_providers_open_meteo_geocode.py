@@ -43,6 +43,11 @@ def test_multi_result_response_maps_to_locations() -> None:
                 "name": "New York",
                 "latitude": 40.71427,
                 "longitude": -74.00597,
+                # Deliberately non-null: a null population here alongside
+                # Tokyo's would trigger _drop_unpopulated_noise (#91),
+                # which isn't what this test is about -- see the dedicated
+                # populated/unpopulated-mix tests below for that behavior.
+                "population": 8000000,
             },
         ]
     }
@@ -68,6 +73,7 @@ def test_multi_result_response_maps_to_locations() -> None:
             name="New York",
             latitude=40.71427,
             longitude=-74.00597,
+            population=8000000,
         ),
     ]
 
@@ -129,6 +135,90 @@ def test_transport_failure_raises_provider_error() -> None:
 
     with pytest.raises(ProviderError):
         _run(geocode(client, "Tokyo"))
+
+
+def test_populated_and_unpopulated_mix_drops_unpopulated() -> None:
+    # Mirrors Open-Meteo's real response for "NYC": one legitimate,
+    # heavily-populated match alongside obscure population-less villages
+    # that happen to share a letter-for-letter prefix (Issue #91).
+    body = {
+        "results": [
+            {
+                "id": 5128581,
+                "name": "New York",
+                "latitude": 40.71427,
+                "longitude": -74.00597,
+                "country": "United States",
+                "population": 8804190,
+            },
+            {
+                "id": 2687834,
+                "name": "Nyckleby",
+                "latitude": 58.16667,
+                "longitude": 12.28333,
+                "country": "Sweden",
+                "population": None,
+            },
+            {
+                "id": 2687847,
+                "name": "Nyckelby",
+                "latitude": 60.47369,
+                "longitude": 15.48597,
+                "country": "Sweden",
+                "population": None,
+            },
+        ]
+    }
+    client = _client(_json_handler(200, body))
+
+    result = _run(geocode(client, "NYC"))
+
+    assert [loc.name for loc in result] == ["New York"]
+
+
+def test_all_unpopulated_results_are_kept_unfiltered() -> None:
+    # Mirrors Open-Meteo's real response for "LA": every candidate is
+    # population-less, so there's no populated entry to prefer -- nothing
+    # gets dropped (this fix deliberately does not touch this case).
+    body = {
+        "results": [
+            {"id": 1, "name": "La", "latitude": 11.7, "longitude": 104.5, "population": None},
+            {"id": 2, "name": "Lâ", "latitude": 14.8, "longitude": -16.0, "population": None},
+            {"id": 3, "name": "La", "latitude": 7.0, "longitude": -11.3, "population": None},
+        ]
+    }
+    client = _client(_json_handler(200, body))
+
+    result = _run(geocode(client, "LA"))
+
+    assert len(result) == 3
+
+
+def test_all_populated_results_are_kept_unfiltered() -> None:
+    body = {
+        "results": [
+            {"id": 1, "name": "Springfield", "latitude": 39.78, "longitude": -89.65, "population": 170188},
+            {"id": 2, "name": "Springfield", "latitude": 37.21, "longitude": -93.30, "population": 114394},
+        ]
+    }
+    client = _client(_json_handler(200, body))
+
+    result = _run(geocode(client, "Springfield"))
+
+    assert len(result) == 2
+
+
+def test_single_unpopulated_result_is_kept() -> None:
+    body = {
+        "results": [
+            {"id": 1, "name": "Nowhere", "latitude": 0.0, "longitude": 0.0, "population": None},
+        ]
+    }
+    client = _client(_json_handler(200, body))
+
+    result = _run(geocode(client, "Nowhere"))
+
+    assert len(result) == 1
 
 
 def test_request_sends_name_and_count_as_query_params() -> None:

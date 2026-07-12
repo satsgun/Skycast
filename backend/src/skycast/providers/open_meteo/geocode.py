@@ -20,7 +20,27 @@ async def geocode(client: httpx.AsyncClient, name: str) -> list[Location]:
         client, _GEOCODING_URL, params={"name": name, "count": _RESULT_COUNT}
     )
     results = body.get("results") or []
-    return [_to_location(result) for result in results]
+    locations = [_to_location(result) for result in results]
+    return _drop_unpopulated_noise(locations)
+
+
+def _drop_unpopulated_noise(locations: list[Location]) -> list[Location]:
+    """Open-Meteo's search does plain prefix/fuzzy-name matching with no
+    relevance weighting, so a short query can pull in obscure,
+    population-less villages alongside a legitimate, heavily-populated
+    match (e.g. "NYC" prefix-matches the Swedish hamlet "Nyckleby" --
+    Issue #91). When at least one result carries real population data,
+    the population-less ones are almost certainly this kind of noise, so
+    drop them. Leaves an all-populated or all-population-less batch
+    untouched -- there's no signal to prefer one over another in either
+    case (e.g. "LA" matches only population-less villages; a genuinely
+    ambiguous well-known name like "Springfield" returns all-populated
+    candidates).
+    """
+    populated = [loc for loc in locations if loc.population is not None]
+    if not populated or len(populated) == len(locations):
+        return locations
+    return populated
 
 
 def _to_location(result: dict) -> Location:
