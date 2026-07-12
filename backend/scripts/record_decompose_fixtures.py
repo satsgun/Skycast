@@ -90,6 +90,39 @@ _SCENARIOS: list[_Scenario] = [
         ),
     ),
     _Scenario(
+        name="evening_named_default_location",
+        query="hourly weather this evening Hyderabad",
+        session_ctx=SessionContext(
+            now=_NOW,
+            default_location=Location(
+                id="in-memory:hyderabad-in",
+                name="Hyderabad",
+                latitude=17.385,
+                longitude=78.4867,
+                country="India",
+                country_code="IN",
+                timezone="Asia/Kolkata",
+            ),
+        ),
+        placeholder_response=DataNeedsSpec(
+            location_names=["Hyderabad"],
+            granularities={Granularity.HOURLY},
+            # "Evening" (17:00-21:00 local) in Asia/Kolkata (UTC+5:30) is
+            # 11:30-15:30 UTC -- regression coverage for a bug where the
+            # model, given a location named in the query text rather than
+            # left implicit, failed to connect it to the default
+            # location's timezone above and produced a UTC-anchored
+            # window instead (returning late-night/early-morning IST
+            # hours for an "evening" query).
+            window=TimeWindow(
+                start=datetime(2026, 7, 7, 11, 30, tzinfo=timezone.utc),
+                end=datetime(2026, 7, 7, 15, 30, tzinfo=timezone.utc),
+            ),
+            variables={WeatherVariable.TEMPERATURE, WeatherVariable.CONDITION},
+            intent=QueryIntent.OUTLOOK,
+        ),
+    ),
+    _Scenario(
         name="multi_day_outlook",
         query="What's the weather like in Austin this weekend?",
         session_ctx=SessionContext(now=_NOW),

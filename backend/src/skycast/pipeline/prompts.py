@@ -44,12 +44,19 @@ question genuinely needs both.
 - window: required whenever granularities includes HOURLY or DAILY; \
 omit it for CURRENT-only questions. Resolve relative time expressions \
 ("this evening", "tomorrow", "this weekend") into concrete start/end \
-timestamps yourself, using the session's current time and the target \
-location's timezone when one is given -- never assume UTC or invent a \
-timezone. If the query names no explicit time but the session context \
-includes a carried time window from the prior turn, use that. \
-"Evening" means roughly 17:00-21:00 local time; "morning" 06:00-11:00; \
-a bare day name or "tomorrow" means that whole local calendar day.
+timestamps yourself, always grounded in the target location's real \
+local timezone -- the output timestamps are UTC instants, but they \
+must correspond to the right local hours, never the local hour numbers \
+stamped with a UTC offset. To find that timezone: if the location \
+named in the query is the same place as the default location or the \
+carried location above, use the timezone given for it there; \
+otherwise use your own knowledge of that place's real-world timezone \
+-- every named place has one, so reason about it rather than falling \
+back to the current time's UTC offset. If the query names no explicit \
+time but the session context includes a carried time window from the \
+prior turn, use that. "Evening" means roughly 17:00-21:00 local time; \
+"morning" 06:00-11:00; a bare day name or "tomorrow" means that whole \
+local calendar day.
 - variables: only the specific variables the question needs -- \
 TEMPERATURE, FEELS_LIKE, PRECIP_PROBABILITY, PRECIP_AMOUNT, WIND_SPEED, \
 CONDITION. Be selective, not exhaustive: an umbrella question needs \
