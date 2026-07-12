@@ -259,6 +259,25 @@ def test_comparison_one_ambiguous_one_resolved_carries_resolved_sibling_forward(
     assert forecasts[1].location.admin1 == "Delhi"
 
 
+def test_decompose_naming_the_default_location_still_resolves_directly() -> None:
+    # Fix #94: decompose is instructed to leave location_names empty when
+    # a default location covers the query, but isn't always reliable
+    # about it (confirmed live against the deployed Gemini-backed
+    # backend). Simulates exactly that buggy output -- the pipeline must
+    # still resolve directly via default_location, not re-geocode the
+    # name and risk the exact worldwide ambiguity default_location exists
+    # to avoid.
+    request = _request(query="weather this evening", default_location=_hyderabad())
+    providers = {"in-memory": _GeocodeSpyProvider()}
+    llm = _llm_client(_spec(location_names=["Hyderabad"]))
+
+    events = _run(_collect(run_query(request, providers, llm)))
+
+    _assert_terminal_invariant(events)
+    assert events[-1].type is SSEEventType.ANSWER
+    assert events[-1].data.card.forecasts[0].location.name == "Hyderabad"
+
+
 def test_not_found_location_maps_to_not_found_error() -> None:
     request = _request(query="What's the weather in Nowhereville?")
     providers = {"in-memory": InMemoryProvider()}

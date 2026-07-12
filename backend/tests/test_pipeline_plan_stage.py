@@ -240,6 +240,87 @@ def test_default_location_chain_has_no_location_name() -> None:
     assert result.calls[0].location_name is None
 
 
+def test_location_name_matching_default_location_skips_geocode() -> None:
+    # Fix #94: decompose sometimes names the default location explicitly
+    # (e.g. echoing it from context) instead of leaving location_names
+    # empty. Treat that the same as the coords-known path rather than
+    # re-geocoding a bare name that can be genuinely ambiguous worldwide.
+    spec = _spec(location_names=["Hyderabad"])
+    providers = {"open-meteo": InMemoryProvider()}
+    hyderabad = _location("Hyderabad")
+
+    result = plan(spec, providers, default_location=hyderabad)
+
+    assert len(result.calls) == 1
+    call = result.calls[0]
+    assert call.tool is PlannedTool.FETCH_FORECAST
+    assert call.location == hyderabad
+    assert call.location_name == "Hyderabad"
+    assert call.depends_on == []
+
+
+def test_location_name_matching_default_location_case_insensitively() -> None:
+    spec = _spec(location_names=["hyderabad"])
+    providers = {"open-meteo": InMemoryProvider()}
+    hyderabad = _location("Hyderabad")
+
+    result = plan(spec, providers, default_location=hyderabad)
+
+    assert len(result.calls) == 1
+    assert result.calls[0].location == hyderabad
+
+
+def test_location_name_not_matching_default_location_still_geocodes() -> None:
+    spec = _spec(location_names=["Springfield"])
+    providers = {"open-meteo": InMemoryProvider()}
+    hyderabad = _location("Hyderabad")
+
+    result = plan(spec, providers, default_location=hyderabad)
+
+    assert len(result.calls) == 2
+    geocode, forecast = result.calls
+    assert geocode.tool is PlannedTool.GEOCODE
+    assert geocode.location_name == "Springfield"
+    assert forecast.depends_on == [geocode.call_id]
+
+
+def test_resolved_locations_wins_over_default_location_name_match() -> None:
+    spec = _spec(location_names=["Hyderabad"])
+    providers = {"open-meteo": InMemoryProvider()}
+    default = _location("Hyderabad")
+    resolved_hyderabad = Location(
+        id="in-memory:hyderabad-alt", name="Hyderabad",
+        latitude=25.396, longitude=68.377, timezone="Asia/Karachi",
+    )
+
+    result = plan(
+        spec, providers,
+        default_location=default,
+        resolved_locations={"Hyderabad": resolved_hyderabad},
+    )
+
+    assert len(result.calls) == 1
+    assert result.calls[0].location == resolved_hyderabad
+
+
+def test_comparison_mixed_default_match_and_geocode() -> None:
+    spec = _spec(location_names=["Hyderabad", "Miami"], intent=QueryIntent.COMPARISON)
+    providers = {"open-meteo": InMemoryProvider()}
+    hyderabad = _location("Hyderabad")
+
+    result = plan(spec, providers, default_location=hyderabad)
+
+    assert len(result.calls) == 3
+    forecast_hyderabad, geocode_miami, forecast_miami = result.calls
+    assert forecast_hyderabad.tool is PlannedTool.FETCH_FORECAST
+    assert forecast_hyderabad.location == hyderabad
+    assert forecast_hyderabad.location_name == "Hyderabad"
+    assert forecast_hyderabad.depends_on == []
+    assert geocode_miami.tool is PlannedTool.GEOCODE
+    assert geocode_miami.location_name == "Miami"
+    assert forecast_miami.depends_on == [geocode_miami.call_id]
+
+
 def test_determinism_same_inputs_produce_equal_plan() -> None:
     spec = _spec(location_names=["Hyderabad"])
     providers = {"open-meteo": InMemoryProvider()}

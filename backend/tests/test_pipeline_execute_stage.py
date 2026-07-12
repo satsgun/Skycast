@@ -86,6 +86,23 @@ def test_skip_geocode_chain_makes_no_geocode_call() -> None:
     assert [stage for _, stage in emitter.calls] == [PipelineStage.EXECUTE_FORECAST]
 
 
+def test_location_name_matching_default_location_makes_no_geocode_call() -> None:
+    # Fix #94: even if decompose names the default location explicitly
+    # (location_names=["Hyderabad"]) instead of leaving it empty, the
+    # plan built from it must not call geocode -- pins the fix at the
+    # execute() level, mirroring test_skip_geocode_chain_makes_no_geocode_call.
+    spec = _spec(location_names=["Hyderabad"])
+    providers = {"open-meteo": _GeocodeSpyProvider()}
+    hyderabad = _location("Hyderabad", 17.385, 78.4867)
+    built_plan = plan(spec, providers, default_location=hyderabad)
+    emitter = RecordingEmitter()
+
+    result = _run(execute(built_plan, providers, emit=emitter))
+
+    assert isinstance(result, Success)
+    assert [stage for _, stage in emitter.calls] == [PipelineStage.EXECUTE_FORECAST]
+
+
 def test_zero_matches_is_not_found() -> None:
     spec = _spec(location_names=["Nowhereville"])
     providers = {"open-meteo": InMemoryProvider()}

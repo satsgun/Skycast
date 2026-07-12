@@ -37,6 +37,15 @@ def plan(
     location_names is empty, preserving the existing single-location
     disambiguation override even if decompose's re-run produced no names
     at all.
+
+    A location_names entry that isn't in resolved_locations but names the
+    same place as default_location also skips geocoding (fix #94):
+    decompose is instructed to leave location_names empty when a default
+    location covers the query, but isn't always reliable about it -- and
+    re-geocoding a bare name that happens to equal the default location's
+    own name can hit the exact ambiguity default_location exists to avoid
+    (e.g. "Hyderabad" alone matches 5 different cities worldwide).
+    resolved_locations still wins when both apply.
     """
     targets = _resolve_targets(
         spec, default_location=default_location, resolved_locations=resolved_locations
@@ -99,7 +108,10 @@ def _resolve_targets(
 ) -> list[tuple[str | None, str | Location]]:
     resolved = resolved_locations or {}
     if spec.location_names:
-        return [(name, resolved.get(name, name)) for name in spec.location_names]
+        return [
+            (name, _resolve_one(name, resolved, default_location))
+            for name in spec.location_names
+        ]
     if resolved:
         return list(resolved.items())
     if default_location is not None:
@@ -108,3 +120,17 @@ def _resolve_targets(
         "query named no location and no default location is configured",
         reason="no_location_and_no_default",
     )
+
+
+def _resolve_one(
+    name: str, resolved: dict[str, Location], default_location: Location | None
+) -> str | Location:
+    if name in resolved:
+        return resolved[name]
+    if default_location is not None and _same_place(name, default_location.name):
+        return default_location
+    return name
+
+
+def _same_place(name: str, default_name: str) -> bool:
+    return name.strip().lower() == default_name.strip().lower()

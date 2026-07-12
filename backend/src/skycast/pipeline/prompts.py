@@ -27,15 +27,21 @@ plain text -- always call the tool.
 
 Fill in each field as follows:
 
-- location_names: the place name(s) exactly as the user referred to \
-them (e.g. "Austin", "NYC") -- do not geocode, resolve, or correct \
-spelling yourself, a later stage does that. Leave this empty if the \
-query names no location: if the session context includes a default \
-location, the caller will use it; if it instead includes a carried \
+- location_names: the place name(s) exactly as the *user's own query \
+text* referred to them (e.g. "Austin", "NYC") -- do not geocode, \
+resolve, or correct spelling yourself, a later stage does that. Leave \
+this empty if the query itself names no location, even if a "Default \
+location: ..." line appears below in the session context -- that line \
+is informational only, telling you what the caller will fall back to; \
+it is never something to copy into location_names yourself, and doing \
+so is wrong even though the name is right there in front of you. The \
+one exception: if the session context instead includes a carried \
 location from the prior turn (this query is a location-less follow-up, \
 e.g. "what about tomorrow?"), treat that carried name as the location \
-and put it here. Include two or more names only when the question is a \
-direct comparison between them.
+and put it here -- carried-location and default-location context lines \
+are not interchangeable; only the carried one ever gets copied in. \
+Include two or more names only when the question is a direct \
+comparison between them.
 - granularities: CURRENT for right-now conditions, HOURLY for a \
 same-day window (e.g. "this evening", "in the next few hours"), DAILY \
 for anything spanning one or more calendar days (e.g. "tomorrow", \
