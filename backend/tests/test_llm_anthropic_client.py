@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
+from skycast.llm.usage import Usage as SkycastUsage
 
 _TOOL_NAME = "emit_canned"
 
@@ -220,3 +221,121 @@ def test_arbitrary_exception_during_repair_call_is_mapped_to_llm_error() -> None
 
     assert exc_info.value.__cause__ is raised
     assert len(fake.messages.calls) == 2
+
+
+# --- Task 22.2: usage tracking ---
+
+
+def _run_get_structured(client: AnthropicLLMClient) -> BaseModel:
+    return asyncio.run(
+        client.get_structured(
+            system="sys prompt", user="what's the weather", schema=_Canned, tool_name=_TOOL_NAME
+        )
+    )
+
+
+def test_happy_path_sets_last_usage_and_cumulative_usage() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    expected = SkycastUsage(input_tokens=10, output_tokens=5, model="claude-haiku-4-5-20251001")
+    assert client.last_usage == expected
+    assert client.cumulative_usage == expected
+
+
+def test_repair_retry_sums_both_calls_into_last_usage() -> None:
+    fake = _FakeAnthropicClient(
+        [
+            _tool_use_message({"wrong_field": "oops"}),
+            _tool_use_message({"value": "sunny"}),
+        ]
+    )
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    expected = SkycastUsage(input_tokens=20, output_tokens=10, model="claude-haiku-4-5-20251001")
+    assert client.last_usage == expected
+    assert client.cumulative_usage == expected
+
+
+def test_repair_retry_exhausted_still_records_usage_before_raising() -> None:
+    fake = _FakeAnthropicClient(
+        [
+            _tool_use_message({"wrong_field": "oops"}),
+            _tool_use_message({"wrong_field": "still wrong"}),
+        ]
+    )
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    with pytest.raises(StructuredOutputError):
+        _run_get_structured(client)
+
+    expected = SkycastUsage(input_tokens=20, output_tokens=10, model="claude-haiku-4-5-20251001")
+    assert client.last_usage == expected
+    assert client.cumulative_usage == expected
+
+
+def test_cumulative_usage_accumulates_across_invocations_last_usage_does_not() -> None:
+    fake = _FakeAnthropicClient(
+        [_tool_use_message({"value": "sunny"}), _tool_use_message({"value": "cloudy"})]
+    )
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+    _run_get_structured(client)
+
+    per_call = SkycastUsage(input_tokens=10, output_tokens=5, model="claude-haiku-4-5-20251001")
+    assert client.last_usage == per_call
+    assert client.cumulative_usage == SkycastUsage(
+        input_tokens=20, output_tokens=10, model="claude-haiku-4-5-20251001"
+    )
+
+
+def test_transport_error_on_first_ever_call_leaves_usage_none() -> None:
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    fake = _FakeAnthropicClient([APIConnectionError(request=request)])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    with pytest.raises(LLMError):
+        _run_get_structured(client)
+
+    assert client.last_usage is None
+    assert client.cumulative_usage is None
+
+
+def test_transport_error_does_not_corrupt_prior_usage() -> None:
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    fake = _FakeAnthropicClient(
+        [_tool_use_message({"value": "sunny"}), APIConnectionError(request=request)]
+    )
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+    prior_last_usage = client.last_usage
+    prior_cumulative_usage = client.cumulative_usage
+
+    with pytest.raises(LLMError):
+        _run_get_structured(client)
+
+    assert client.last_usage == prior_last_usage
+    assert client.cumulative_usage == prior_cumulative_usage
+
+
+def test_exception_during_repair_call_records_first_calls_usage_but_not_last_usage() -> None:
+    raised = RuntimeError("boom during repair")
+    fake = _FakeAnthropicClient([_tool_use_message({"wrong_field": "oops"}), raised])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    with pytest.raises(LLMError):
+        _run_get_structured(client)
+
+    # The first call genuinely succeeded and spent real tokens, so
+    # cumulative_usage picks it up -- but this invocation never
+    # produced a final answer, so last_usage isn't attributed to it.
+    assert client.last_usage is None
+    assert client.cumulative_usage == SkycastUsage(
+        input_tokens=10, output_tokens=5, model="claude-haiku-4-5-20251001"
+    )

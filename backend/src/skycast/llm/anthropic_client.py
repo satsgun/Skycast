@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 
 from skycast.llm.client import LLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
+from skycast.llm.usage import Usage
 
 _DEFAULT_MAX_TOKENS = 1024
 
@@ -38,6 +39,8 @@ class AnthropicLLMClient(LLMClient):
         self._model = model
         self._client = client if client is not None else anthropic.AsyncAnthropic()
         self._max_tokens = max_tokens
+        self.last_usage: Usage | None = None
+        self.cumulative_usage: Usage | None = None
 
     async def get_structured(
         self, *, system: str, user: str, schema: type[BaseModel], tool_name: str
@@ -46,8 +49,10 @@ class AnthropicLLMClient(LLMClient):
         messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
 
         message = await self._create(system=system, messages=messages, tool=tool, tool_name=tool_name)
+        invocation_usage = self._record_usage(message)
         result, error_feedback = self._validate_response(message, schema=schema, tool_name=tool_name)
         if result is not None:
+            self.last_usage = invocation_usage
             return result
 
         repair_messages = [
@@ -62,10 +67,13 @@ class AnthropicLLMClient(LLMClient):
         repaired = await self._create(
             system=system, messages=repair_messages, tool=tool, tool_name=tool_name
         )
+        invocation_usage = invocation_usage + self._record_usage(repaired)
         result, error_feedback = self._validate_response(repaired, schema=schema, tool_name=tool_name)
         if result is not None:
+            self.last_usage = invocation_usage
             return result
 
+        self.last_usage = invocation_usage
         raise StructuredOutputError(
             f"model could not produce valid `{tool_name}` arguments after one repair retry",
             reason="validation_failed",
@@ -94,6 +102,24 @@ class AnthropicLLMClient(LLMClient):
             # the SDK's own message; never add request headers or the API
             # key to it.
             raise LLMError(f"anthropic request failed: {exc}", reason=type(exc).__name__) from exc
+
+    def _record_usage(self, message: Any) -> Usage:
+        """Builds this call's Usage from the real response, folds it into
+        the running self.cumulative_usage, and returns it so the caller
+        can build the invocation-level total (summed across a repair
+        retry, if one happens). Only called after a successful _create()
+        -- a call that raises never reaches here, so a failed call can't
+        corrupt cumulative_usage.
+        """
+        usage = Usage(
+            input_tokens=message.usage.input_tokens,
+            output_tokens=message.usage.output_tokens,
+            model=self._model,
+        )
+        self.cumulative_usage = (
+            usage if self.cumulative_usage is None else self.cumulative_usage + usage
+        )
+        return usage
 
     @staticmethod
     def _build_tool(*, schema: type[BaseModel], tool_name: str) -> dict[str, Any]:

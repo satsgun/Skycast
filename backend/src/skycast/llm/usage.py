@@ -29,3 +29,14 @@ class Usage(BaseModel):
     def total_tokens(self) -> int:
         """Derived, not stored -- input + output for this usage record."""
         return self.input_tokens + self.output_tokens
+
+    def __add__(self, other: "Usage") -> "Usage":
+        """Combines two usage records -- e.g. a repair-retry's call
+        summed with the original, so a caller sees the total cost of
+        satisfying one request, not just its last underlying API call.
+        """
+        return Usage(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            model=other.model,
+        )
