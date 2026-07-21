@@ -164,8 +164,8 @@ DATASET: list[EvalCase] = [
         checks_execute=(_exec_forecast_count(1),),
         checks_decompose=(
             C.spec_intent_is("DECISION"),
-            C.spec_location_count(1),
-            C.spec_has_variable("PRECIP_PROBABILITY"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"PRECIP_PROBABILITY", "CONDITION"}),
         ),
         checks_synthesize=(
             C.answer_nonempty(),
@@ -195,6 +195,8 @@ DATASET: list[EvalCase] = [
         checks_decompose=(
             C.spec_intent_is("OUTLOOK"),
             C.spec_has_granularity("DAILY"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_highlight_valid_or_none()),
         expect_terminal="answer",
@@ -229,7 +231,8 @@ DATASET: list[EvalCase] = [
         checks_execute=(_exec_clarify_for("Springfield"),),
         checks_decompose=(
             C.spec_intent_is("COMPARISON"),
-            C.spec_location_count(2),
+            C.spec_locations_exact(["Hyderabad", "Springfield"]),
+            C.spec_variables_exact({"TEMPERATURE"}),
         ),
         expect_terminal="clarify",
     ),
@@ -251,6 +254,7 @@ DATASET: list[EvalCase] = [
         checks_decompose=(
             C.spec_names_default_location(),
             C.spec_location_count(0),
+            C.spec_variables_exact({"PRECIP_PROBABILITY"}),
         ),
         checks_synthesize=(C.answer_nonempty(),),
         expect_terminal="answer",
@@ -269,7 +273,10 @@ DATASET: list[EvalCase] = [
         checks_plan=(_plan_has_geocode_for("Springfield"), _plan_forecast_count(1)),
         expect_execute_variant="NeedsClarification",
         checks_execute=(_exec_clarify_for("Springfield"),),
-        checks_decompose=(C.spec_location_count(1),),
+        checks_decompose=(
+            C.spec_locations_exact(["Springfield"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="clarify",
     ),
     # 6. Not found -- unknown location geocodes empty.
@@ -327,6 +334,8 @@ DATASET: list[EvalCase] = [
         checks_decompose=(
             C.spec_intent_is("CONDITIONS"),
             C.spec_has_granularity("CURRENT"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_highlight_valid_or_none()),
         expect_terminal="answer",
@@ -349,6 +358,8 @@ DATASET: list[EvalCase] = [
         checks_decompose=(
             C.spec_has_granularity("HOURLY"),
             C.spec_time_kind_is("THIS_EVENING"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE"}),
         ),
         expect_terminal="answer",
     ),
@@ -369,6 +380,12 @@ DATASET: list[EvalCase] = [
         # need rather than a plain current-conditions lookup.
         checks_decompose=(
             C.spec_has_granularity("HOURLY"),
+            C.spec_locations_exact(["Hyderabad"]),
+            # Loose on precision: the aggregation/routing answer itself is
+            # deliberately contested (see the case comment above), but the
+            # two thresholds are explicit anchors in the query text either
+            # way, so recall on them is still worth requiring.
+            C.spec_variables_prf({"TEMPERATURE", "WIND_SPEED"}, min_precision=0.4),
         ),
         judge_rubric=(
             "The query asks for a COUNT of hours meeting a compound numeric "
@@ -399,7 +416,8 @@ DATASET: list[EvalCase] = [
         expect_execute_variant="Success",
         checks_decompose=(
             C.spec_intent_is("DECISION"),
-            C.spec_has_variable("TEMPERATURE"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_leads_with_conclusion()),
         judge_rubric="Does the answer lead with a clear jacket yes/no consistent with the temperature?",
@@ -417,7 +435,11 @@ DATASET: list[EvalCase] = [
         checks_plan=(_plan_has_geocode_for("São Paulo"), _plan_forecast_count(1)),
         expect_execute_variant="Success",
         checks_execute=(_exec_forecast_count(1),),
-        checks_decompose=(C.spec_intent_is("DECISION"), C.spec_location_count(1)),
+        checks_decompose=(
+            C.spec_intent_is("DECISION"),
+            C.spec_locations_exact(["São Paulo"]),
+            C.spec_variables_exact({"CONDITION"}),
+        ),
         expect_terminal="answer",
     ),
     EvalCase(
@@ -432,7 +454,12 @@ DATASET: list[EvalCase] = [
         expect_execute_variant="Success",
         checks_decompose=(
             C.spec_intent_is("DECISION"),
-            C.spec_has_variable("WIND_SPEED"),
+            C.spec_locations_exact(["Hyderabad"]),
+            # Tolerates one companion variable (e.g. CONDITION) while
+            # still requiring WIND_SPEED -- the query is laser-focused on
+            # wind, but a model reasonably pulling in general condition
+            # too shouldn't be penalized as a wrong extraction.
+            C.spec_variables_prf({"WIND_SPEED"}, min_precision=0.5),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_leads_with_conclusion()),
         expect_terminal="answer",
@@ -451,7 +478,11 @@ DATASET: list[EvalCase] = [
         checks_plan=(_plan_has_geocode_for("Reykjavík"), _plan_forecast_count(1)),
         expect_execute_variant="Success",
         checks_execute=(_exec_forecast_count(1),),
-        checks_decompose=(C.spec_intent_is("CONDITIONS"),),
+        checks_decompose=(
+            C.spec_intent_is("CONDITIONS"),
+            C.spec_locations_exact(["Reykjavík"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="answer",
     ),
     EvalCase(
@@ -465,7 +496,10 @@ DATASET: list[EvalCase] = [
         ),
         checks_plan=(_plan_has_geocode_for("Paris"),),
         expect_execute_variant="Success",
-        checks_decompose=(C.spec_location_count(1),),
+        checks_decompose=(
+            C.spec_locations_exact(["Paris"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="answer",
     ),
 
@@ -480,7 +514,12 @@ DATASET: list[EvalCase] = [
         ),
         checks_plan=(_plan_forecast_count(1),),
         expect_execute_variant="Success",
-        checks_decompose=(C.spec_intent_is("OUTLOOK"), C.spec_has_granularity("DAILY")),
+        checks_decompose=(
+            C.spec_intent_is("OUTLOOK"),
+            C.spec_has_granularity("DAILY"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="answer",
     ),
 
@@ -502,7 +541,11 @@ DATASET: list[EvalCase] = [
         ),
         expect_execute_variant="Success",
         checks_execute=(_exec_forecast_count(2),),
-        checks_decompose=(C.spec_intent_is("COMPARISON"), C.spec_location_count(2)),
+        checks_decompose=(
+            C.spec_intent_is("COMPARISON"),
+            C.spec_locations_exact(["Tokyo", "Paris"]),
+            C.spec_variables_exact({"TEMPERATURE"}),
+        ),
         checks_synthesize=(C.answer_nonempty(), C.answer_card_forecast_count(2)),
         judge_rubric="Does the answer compare BOTH cities and state which is warmer?",
         expect_terminal="answer",
@@ -521,7 +564,11 @@ DATASET: list[EvalCase] = [
         checks_plan=(_plan_forecast_count(3),),
         expect_execute_variant="Success",
         checks_execute=(_exec_forecast_count(3),),
-        checks_decompose=(C.spec_intent_is("COMPARISON"), C.spec_location_count(3)),
+        checks_decompose=(
+            C.spec_intent_is("COMPARISON"),
+            C.spec_locations_exact(["Tokyo", "Paris", "Seattle"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="answer",
     ),
 
@@ -545,6 +592,8 @@ DATASET: list[EvalCase] = [
         expect_execute_variant="Success",
         checks_decompose=(
             C.spec_time_kind_is("THIS_EVENING"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE"}),
         ),
         expect_terminal="answer",
     ),
@@ -558,7 +607,11 @@ DATASET: list[EvalCase] = [
         ),
         checks_plan=(_plan_forecast_count(1),),
         expect_execute_variant="Success",
-        checks_decompose=(C.spec_has_granularity("HOURLY"),),
+        checks_decompose=(
+            C.spec_has_granularity("HOURLY"),
+            C.spec_locations_exact(["Hyderabad"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="answer",
     ),
 
@@ -575,7 +628,10 @@ DATASET: list[EvalCase] = [
         checks_plan=(_plan_has_geocode_for("Portland"),),
         expect_execute_variant="NeedsClarification",
         checks_execute=(_exec_clarify_for("Portland"),),
-        checks_decompose=(C.spec_location_count(1),),
+        checks_decompose=(
+            C.spec_locations_exact(["Portland"]),
+            C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
+        ),
         expect_terminal="clarify",
     ),
 
