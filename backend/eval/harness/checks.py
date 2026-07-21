@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import re
 
+from skycast.domain.forecast import Forecast
+
+from eval.harness.grounding import derive_facts
 from eval.harness.types import Check
 
 # ----- decompose (DataNeedsSpec) property checks -----
@@ -201,3 +204,133 @@ def answer_card_forecast_count(n: int) -> Check:
         c = len(ans.card.forecasts)
         return c == n, f"card.forecasts={c} expected={n}"
     return Check(f"card_forecast_count=={n}", p)
+
+
+# ----- synthesize grounding checks (Task E4.2) -----
+#
+# Contradiction, not omission (the crux that keeps these from
+# over-firing): an answer that's silent on a dimension always passes --
+# only an answer that actively contradicts the fixture fails. Coarse
+# property floor by design (same style as answer_leads_with_conclusion
+# above); the LLM-judge tier (Task E4.3) reads subtler phrasing.
+#
+# Term lists are editorial ground truth (named + documented, same
+# framing as grounding.py's thresholds), scoped to the sketch's own
+# examples plus close variants -- not an attempt to catch every possible
+# phrasing. Each check stays independently scoped to its own named
+# dimension (e.g. "sunny" belongs to _CONDITION_WORDS, not the rain
+# check, even though a sunny day implies no rain).
+
+_RAIN_AFFIRMATIVE_TERMS = (
+    "bring an umbrella", "bring your umbrella", "grab an umbrella", "take an umbrella",
+    "rain likely", "rain is likely", "expect rain",
+    "rain", "raining", "rainy", "rains",
+    "umbrella", "wet", "shower", "showers", "drizzle", "drizzling",
+    "downpour", "storm", "thunderstorm",
+)
+_RAIN_NEGATIVE_TERMS = (
+    "no rain", "won't rain", "wont rain", "will not rain",
+    "not going to rain", "isn't going to rain",
+    "no need for an umbrella", "won't need an umbrella", "skip the umbrella",
+    "leave the umbrella", "don't bring an umbrella", "no umbrella needed",
+    "dry",
+)
+_TEMPERATURE_BAND_WORDS: dict[str, str] = {
+    "freezing": "cold", "frigid": "cold", "cold": "cold", "chilly": "cold", "cool": "cold",
+    "mild": "mild", "pleasant": "mild", "comfortable": "mild", "temperate": "mild",
+    "warm": "warm", "balmy": "warm",
+    "hot": "hot", "scorching": "hot", "sweltering": "hot", "boiling": "hot",
+}
+_CONDITION_WORDS: dict[str, str] = {
+    "sunny": "clear", "clear": "clear", "bright": "clear",
+    "cloudy": "cloud", "overcast": "cloud", "grey": "cloud", "gray": "cloud",
+    "foggy": "cloud", "misty": "cloud",
+    "rain": "rain", "raining": "rain", "rainy": "rain", "drizzle": "rain",
+    "drizzling": "rain", "showers": "rain",
+    "snow": "snow", "snowy": "snow", "snowing": "snow",
+    "storm": "storm", "stormy": "storm", "thunderstorm": "storm", "thundery": "storm",
+}
+
+
+def _contains_word(text: str, phrase: str) -> bool:
+    """Whole word/phrase match via regex boundaries -- not naive
+    substring presence (so e.g. "rain" doesn't spuriously match inside
+    an unrelated longer word); a multi-word phrase requires its words
+    adjacent, in order.
+    """
+    pattern = r"\b" + r"\s+".join(re.escape(w) for w in phrase.split()) + r"\b"
+    return re.search(pattern, text.lower()) is not None
+
+
+def _polarity(
+    text: str, negative_terms: tuple[str, ...], affirmative_terms: tuple[str, ...]
+) -> str | None:
+    """Negative terms are checked first, so a phrase like "no rain"
+    (which contains the affirmative keyword "rain" as a substring) is
+    read as negative, not a false affirmative hit.
+    """
+    if any(_contains_word(text, t) for t in negative_terms):
+        return "negative"
+    if any(_contains_word(text, t) for t in affirmative_terms):
+        return "affirmative"
+    return None
+
+
+def _mentioned_band(text: str, band_words: dict[str, str]) -> str | None:
+    """First matching band word, by dict-iteration order. Mixed-band
+    text ("cold in the morning but hot by afternoon") resolves to
+    whichever is found first -- a known coarseness of a property floor,
+    not a bug; the judge tier reads genuinely mixed answers.
+    """
+    for word, band in band_words.items():
+        if _contains_word(text, word):
+            return band
+    return None
+
+
+def answer_grounded_precip(forecast: Forecast) -> Check:
+    """The sketch's headline case: the answer's rain/umbrella framing
+    must not contradict the fixture's rain_likely fact.
+    """
+    facts = derive_facts(forecast)
+
+    def p(ans):
+        polarity = _polarity(ans.text or "", _RAIN_NEGATIVE_TERMS, _RAIN_AFFIRMATIVE_TERMS)
+        if facts.rain_likely is True and polarity == "negative":
+            return False, f"fixture rain_likely=True but answer denies rain: {ans.text!r}"
+        if facts.rain_likely is False and polarity == "affirmative":
+            return False, f"fixture rain_likely=False but answer claims rain: {ans.text!r}"
+        return True, f"rain_likely={facts.rain_likely} answer_polarity={polarity}"
+    return Check("answer_grounded_precip", p)
+
+
+def answer_grounded_temperature(forecast: Forecast) -> Check:
+    """The answer's temperature characterization, if any, must not
+    contradict the fixture's temperature_band (e.g. doesn't call a 5C
+    fixture "warm").
+    """
+    facts = derive_facts(forecast)
+
+    def p(ans):
+        mentioned = _mentioned_band(ans.text or "", _TEMPERATURE_BAND_WORDS)
+        if mentioned is None:
+            return True, f"no temperature characterization in answer (fixture band={facts.temperature_band})"
+        ok = mentioned == facts.temperature_band
+        return ok, f"answer implies {mentioned!r} but fixture band={facts.temperature_band!r}"
+    return Check("answer_grounded_temperature", p)
+
+
+def answer_grounded_condition(forecast: Forecast) -> Check:
+    """The condition the answer describes, if any, must not contradict
+    the fixture's condition_family (e.g. doesn't say "sunny" when the
+    fixture is RAIN).
+    """
+    facts = derive_facts(forecast)
+
+    def p(ans):
+        mentioned = _mentioned_band(ans.text or "", _CONDITION_WORDS)
+        if mentioned is None:
+            return True, f"no condition description in answer (fixture family={facts.condition_family})"
+        ok = mentioned == facts.condition_family
+        return ok, f"answer implies {mentioned!r} but fixture condition_family={facts.condition_family!r}"
+    return Check("answer_grounded_condition", p)

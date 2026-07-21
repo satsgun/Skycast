@@ -1,13 +1,22 @@
 """Unit tests for eval/harness/checks.py's decompose-scoring checks
-(Task E1). Run offline against synthetic spec-shaped objects -- these
-checks only ever read spec.location_names (and, for variables checks,
-spec.variables), so a lightweight stand-in is enough; no real
-DataNeedsSpec construction needed.
+(Task E1) and synthesize-grounding checks (Task E4.2). Decompose checks
+run offline against synthetic spec-shaped objects -- a lightweight
+stand-in is enough since they only ever read spec.location_names/
+.variables. Grounding checks need a real Forecast (derive_facts reads
+real fields), so those use the domain types directly, same pattern as
+test_eval_grounding.py.
 """
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
+from skycast.domain.conditions import ConditionCode
+from skycast.domain.forecast import Forecast, HourlyReading, Units
+from skycast.domain.location import Location
+
 from eval.harness import checks as C
+
+_NOW = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
 
 
 def _spec(location_names: list[str]) -> SimpleNamespace:
@@ -156,3 +165,100 @@ def test_spec_variables_exact_fails_for_missing_variable() -> None:
     check = C.spec_variables_exact(_PRECIP_AND_CONDITION)
     passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY"}))
     assert not passed, detail
+
+
+# --- synthesize grounding checks (Task E4.2) ---
+
+
+def _forecast(
+    *,
+    precip_probability: float | None = 10.0,
+    temperature: float = 20.0,
+    condition_code: ConditionCode = ConditionCode.CLEAR,
+) -> Forecast:
+    return Forecast(
+        location=Location(id="test:x", name="X", latitude=0.0, longitude=0.0),
+        units=Units(),
+        current=HourlyReading(
+            timestamp=_NOW,
+            temperature=temperature,
+            precip_probability=precip_probability,
+            condition_code=condition_code,
+        ),
+    )
+
+
+def _answer(text: str) -> SimpleNamespace:
+    return SimpleNamespace(text=text)
+
+
+def test_answer_grounded_precip_passes_for_affirmative_umbrella_over_rainy_fixture() -> None:
+    check = C.answer_grounded_precip(_forecast(precip_probability=80.0))
+    passed, detail = check.predicate(_answer("Yes, bring an umbrella this afternoon."))
+    assert passed, detail
+
+
+def test_answer_grounded_precip_fails_for_dry_and_sunny_over_rainy_fixture() -> None:
+    check = C.answer_grounded_precip(_forecast(precip_probability=80.0))
+    passed, detail = check.predicate(_answer("It'll be dry and sunny today."))
+    assert not passed, detail
+
+
+def test_answer_grounded_precip_passes_when_answer_never_mentions_rain() -> None:
+    check = C.answer_grounded_precip(_forecast(precip_probability=80.0))
+    passed, detail = check.predicate(_answer("It'll be a pleasant afternoon."))
+    assert passed, detail
+
+
+def test_answer_grounded_precip_passes_no_rain_expected_over_low_precip_fixture() -> None:
+    check = C.answer_grounded_precip(_forecast(precip_probability=10.0))
+    passed, detail = check.predicate(_answer("No rain expected today."))
+    assert passed, detail
+
+
+def test_answer_grounded_precip_fails_no_rain_expected_over_high_precip_fixture() -> None:
+    check = C.answer_grounded_precip(_forecast(precip_probability=80.0))
+    passed, detail = check.predicate(_answer("No rain expected today."))
+    assert not passed, detail
+
+
+def test_answer_grounded_precip_always_passes_when_fixture_has_no_precip_data() -> None:
+    check = C.answer_grounded_precip(_forecast(precip_probability=None))
+    passed, detail = check.predicate(_answer("Bring an umbrella just in case."))
+    assert passed, detail
+
+
+def test_answer_grounded_temperature_fails_for_warm_over_cold_fixture() -> None:
+    check = C.answer_grounded_temperature(_forecast(temperature=5.0))
+    passed, detail = check.predicate(_answer("It'll be a warm day."))
+    assert not passed, detail
+
+
+def test_answer_grounded_temperature_passes_for_chilly_over_cold_fixture() -> None:
+    check = C.answer_grounded_temperature(_forecast(temperature=5.0))
+    passed, detail = check.predicate(_answer("It'll be chilly today."))
+    assert passed, detail
+
+
+def test_answer_grounded_temperature_passes_when_answer_has_no_temperature_word() -> None:
+    check = C.answer_grounded_temperature(_forecast(temperature=5.0))
+    passed, detail = check.predicate(_answer("Bring an umbrella."))
+    assert passed, detail
+
+
+def test_answer_grounded_condition_fails_for_clear_skies_over_rain_fixture() -> None:
+    check = C.answer_grounded_condition(_forecast(condition_code=ConditionCode.RAIN))
+    passed, detail = check.predicate(_answer("Expect clear skies today."))
+    assert not passed, detail
+
+
+def test_answer_grounded_condition_passes_when_matching_rain_fixture() -> None:
+    check = C.answer_grounded_condition(_forecast(condition_code=ConditionCode.RAIN))
+    passed, detail = check.predicate(_answer("It'll be rainy today."))
+    assert passed, detail
+
+
+def test_answer_grounded_condition_passes_when_answer_is_silent() -> None:
+    check = C.answer_grounded_condition(_forecast(condition_code=ConditionCode.RAIN))
+    passed, detail = check.predicate(_answer("It'll be a good day for a walk."))
+    assert passed, detail
