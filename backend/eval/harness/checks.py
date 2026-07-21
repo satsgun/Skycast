@@ -104,6 +104,14 @@ def spec_variables_prf(
     return Check(f"variables_prf{sorted(expected)}", p)
 
 
+def spec_variables_exact(expected: set[str]) -> Check:
+    """Thin convenience wrapper over spec_variables_prf's exact-match
+    default, for dataset readability where the exact-set case is the
+    intent, not a deliberately relaxed threshold.
+    """
+    return spec_variables_prf(expected, min_precision=1.0, min_recall=1.0)
+
+
 def spec_has_granularity(g: str) -> Check:
     def p(spec):
         vals = {getattr(x, "value", str(x)) for x in spec.granularities}

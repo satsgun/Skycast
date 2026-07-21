@@ -133,3 +133,26 @@ def test_detail_reports_precision_recall_and_offending_sets() -> None:
     assert "recall" in detail.lower()
     assert "wind_speed" in detail.lower()
     assert "condition" in detail.lower()
+
+
+# --- spec_variables_exact (Task E1.3) ---
+
+
+def test_spec_variables_exact_passes_for_exact_match() -> None:
+    check = C.spec_variables_exact(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY", "CONDITION"}))
+    assert passed, detail
+
+
+def test_spec_variables_exact_fails_for_extra_variable() -> None:
+    check = C.spec_variables_exact(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(
+        _spec_vars({"PRECIP_PROBABILITY", "CONDITION", "WIND_SPEED"})
+    )
+    assert not passed, detail
+
+
+def test_spec_variables_exact_fails_for_missing_variable() -> None:
+    check = C.spec_variables_exact(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY"}))
+    assert not passed, detail
