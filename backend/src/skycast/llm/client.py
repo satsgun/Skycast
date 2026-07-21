@@ -14,7 +14,22 @@ from pydantic import BaseModel
 
 
 class LLMClient(ABC):
-    """Provider-agnostic contract for schema-enforced structured LLM output."""
+    """Provider-agnostic contract for schema-enforced structured LLM output.
+
+    Optional usage contract (Task 22, not part of this abstract
+    interface): an implementation MAY set `self.last_usage: Usage |
+    None` (skycast.llm.usage.Usage) after each `get_structured()` call
+    -- the most recent call's token usage, including any repair-retry
+    call made to satisfy it -- and MAY accumulate a running
+    `self.cumulative_usage: Usage | None` across every call the
+    instance has ever made. Neither attribute is required:
+    `get_structured()`'s return type stays just the validated model, so
+    `FakeLLMClient` and every pipeline caller are unaffected whether or
+    not a given implementation tracks usage. A caller reading usage
+    (e.g. the eval harness's `InstrumentedLLMClient`) must treat its
+    absence (`getattr(client, "last_usage", None) is None`) as
+    "unknown," never as an error.
+    """
 
     @abstractmethod
     async def get_structured(
