@@ -78,7 +78,7 @@ def derive_facts(forecast: Forecast, locator: ReadingLocator | None = None) -> G
     reading -- the same "what's this answer most likely about"
     precedence used elsewhere in the pipeline.
     """
-    reading = _select_reading(forecast, locator)
+    reading = select_reading(forecast, locator)
     return GroundingFacts(
         rain_likely=_rain_likely(reading),
         temperature_band=_temperature_band(reading),
@@ -87,7 +87,13 @@ def derive_facts(forecast: Forecast, locator: ReadingLocator | None = None) -> G
     )
 
 
-def _select_reading(forecast: Forecast, locator: ReadingLocator | None) -> _Reading:
+def select_reading(forecast: Forecast, locator: ReadingLocator | None) -> _Reading:
+    """Picks the reading a locator (or the default precedence) points at.
+
+    Public so other harness code (e.g. the judge) can render the same
+    reading derive_facts scores against, instead of re-implementing the
+    current -> hourly[0] -> daily[0] precedence a second time.
+    """
     if locator is not None:
         if locator.block == ForecastBlock.CURRENT:
             assert forecast.current is not None

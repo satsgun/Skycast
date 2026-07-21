@@ -91,9 +91,13 @@ def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
     # gated LLM-judge tier
     if judge is not None and case.judge_rubric:
         try:
-            verdict = judge(case, answer)
+            verdict = judge(case, answer, result.forecasts)
+            label = case.judge_rubric[:40]
             res.checks.append(
-                CheckResult(f"judge::{case.judge_rubric[:40]}", verdict.passed, verdict.detail)
+                CheckResult(f"judge_well_formed::{label}", verdict.well_formed, verdict.detail)
+            )
+            res.checks.append(
+                CheckResult(f"judge_faithful::{label}", verdict.faithful, verdict.detail)
             )
         except Exception as e:
             res.checks.append(
