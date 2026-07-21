@@ -86,7 +86,10 @@ def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
         res.error = f"{type(e).__name__}: {e}"
         return res
 
-    res.checks = _run_checks(answer, case.checks_synthesize)
+    checks = list(case.checks_synthesize)
+    if case.checks_synthesize_grounded is not None:
+        checks.extend(case.checks_synthesize_grounded(result.forecasts))
+    res.checks = _run_checks(answer, checks)
 
     # gated LLM-judge tier
     if judge is not None and case.judge_rubric:

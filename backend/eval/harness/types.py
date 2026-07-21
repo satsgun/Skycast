@@ -80,6 +80,14 @@ class EvalCase:
     # --- stochastic-tier expectations (properties over real LLM output) ---
     checks_decompose: tuple[Check, ...] = ()
     checks_synthesize: tuple[Check, ...] = ()      # property floor
+    # grounding checks (Task E4.2) need the actual Forecast(s) execute()
+    # produces, not a hand-authored duplicate baked into the dataset (a
+    # drift risk if the fixture data changes). A case that wants
+    # grounding checks supplies a factory here instead of a static
+    # Check; the runner calls it with the forecasts execute() already
+    # computed, merging the result into checks_synthesize's property
+    # floor.
+    checks_synthesize_grounded: Callable[[list[Any]], tuple[Check, ...]] | None = None
     judge_rubric: str | None = None                # gated LLM-judge, optional
 
     # --- end-to-end expectation ---

@@ -16,8 +16,9 @@ from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
 from skycast.pipeline.synthesis_output import SynthesisOutput
 
 from eval.cases.dataset import DATASET
-from eval.harness.stochastic import run_end_to_end
-from eval.harness.types import EvalCase
+from eval.harness import checks as C
+from eval.harness.stochastic import run_end_to_end, run_synthesize
+from eval.harness.types import Check, EvalCase
 
 _LOCATION = Location(
     id="in-memory:hyderabad-in",
@@ -81,3 +82,61 @@ def test_dataset_default_location_cases_carry_a_default_location() -> None:
     by_id = {c.id: c for c in DATASET}
     for case_id in ("no_location_default", "default_should_i_go_out"):
         assert by_id[case_id].default_location is not None, case_id
+
+
+# --- checks_synthesize_grounded wiring (Task E4.4) ---
+
+_HYDERABAD_SPEC = DataNeedsSpec(
+    location_names=["Hyderabad"],
+    granularities={Granularity.CURRENT},
+    variables={WeatherVariable.PRECIP_PROBABILITY},
+    intent=QueryIntent.CONDITIONS,
+)
+
+
+def _synthesize_fake_llm() -> FakeLLMClient:
+    def responder(*, system, user, schema, tool_name):
+        return SynthesisOutput(text="It looks clear right now.", highlight=None)
+
+    return FakeLLMClient(responder)
+
+
+def _grounded_case(*, grounded) -> EvalCase:
+    return EvalCase(
+        id="synthesize_grounded_wiring",
+        query="Will it rain in Hyderabad?",
+        canned_spec=_HYDERABAD_SPEC,
+        checks_synthesize=(C.answer_nonempty(),),
+        checks_synthesize_grounded=grounded,
+    )
+
+
+def test_run_synthesize_invokes_grounded_factory_with_the_real_execute_forecasts() -> None:
+    """The factory must see the actual Forecast execute() produced (from
+    InMemoryProvider's real Hyderabad fixture) -- not a stand-in the case
+    hand-authored -- otherwise a grounding check built from it could drift
+    from what the pipeline actually returns.
+    """
+    captured: list = []
+
+    def grounded(forecasts):
+        captured.append(forecasts)
+        saw_hyderabad = forecasts[0].location.name == "Hyderabad"
+        return (Check("saw_hyderabad", lambda answer: (saw_hyderabad, "ok")),)
+
+    result = run_synthesize(_grounded_case(grounded=grounded), _synthesize_fake_llm())
+
+    assert result.error is None
+    assert len(captured) == 1
+    assert captured[0][0].location.name == "Hyderabad"
+    names = [c.name for c in result.checks]
+    assert names == ["answer_nonempty", "saw_hyderabad"]
+    saw_hyderabad = next(c for c in result.checks if c.name == "saw_hyderabad")
+    assert saw_hyderabad.passed, saw_hyderabad.detail
+
+
+def test_run_synthesize_without_grounded_factory_behaves_as_before() -> None:
+    result = run_synthesize(_grounded_case(grounded=None), _synthesize_fake_llm())
+
+    assert result.error is None
+    assert [c.name for c in result.checks] == ["answer_nonempty"]
