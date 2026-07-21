@@ -8,7 +8,6 @@ capabilities() is read, via select_provider).
 """
 
 from skycast.domain.location import Location
-from skycast.domain.provider import ForecastRequest
 from skycast.pipeline.data_needs import DataNeedsSpec
 from skycast.pipeline.errors import NoLocationError
 from skycast.pipeline.plan import PlannedCall, PlannedTool, ToolPlan
@@ -50,15 +49,6 @@ def plan(
     targets = _resolve_targets(
         spec, default_location=default_location, resolved_locations=resolved_locations
     )
-    # TODO(Task 21.3/21.4): spec.time is a descriptor, not a concrete
-    # window -- decompose no longer resolves one (ADR-0006). Until the
-    # resolver is wired in post-geocode, window is always None here, so
-    # ForecastRequest construction below fails its own validator for any
-    # HOURLY/DAILY spec. Known, accepted gap; see
-    # test_pipeline_plan_stage.py's pinning test.
-    request = ForecastRequest(
-        granularities=spec.granularities, window=None, variables=spec.variables
-    )
 
     calls: list[PlannedCall] = []
     for index, (name, target) in enumerate(targets):
@@ -66,6 +56,11 @@ def plan(
         selected = select_provider(
             required_variables=spec.variables,
             granularities=spec.granularities,
+            # TODO(Task 21.5): spec.time is a descriptor, not a concrete
+            # window (ADR-0006) -- there's no timezone to resolve one with
+            # before geocoding. The horizon check inside select_provider
+            # is a no-op until it reasons from the descriptor directly
+            # instead of a window.
             window=None,
             providers=list(providers.values()),
             needs_geocoding=is_name,
@@ -88,7 +83,9 @@ def plan(
                     tool=PlannedTool.FETCH_FORECAST,
                     provider=provider_id,
                     depends_on=[geocode_id],
-                    request=request,
+                    granularities=spec.granularities,
+                    time=spec.time,
+                    variables=spec.variables,
                 )
             )
         else:
@@ -99,7 +96,9 @@ def plan(
                     provider=provider_id,
                     location=target,
                     location_name=name,
-                    request=request,
+                    granularities=spec.granularities,
+                    time=spec.time,
+                    variables=spec.variables,
                 )
             )
 

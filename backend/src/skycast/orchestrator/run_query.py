@@ -18,6 +18,7 @@ background task, so steps reach the stream as the pipeline reaches them
 
 import asyncio
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 from skycast.api.query_request import QueryRequest
 from skycast.llm.client import LLMClient
@@ -86,7 +87,7 @@ async def _run_query_inner(
         return
 
     result_box: list[ExecutionResult] = []
-    async for event in _stream_execute(tool_plan, providers, result_box):
+    async for event in _stream_execute(tool_plan, providers, result_box, now=ctx.now):
         yield event
     result = result_box[0]
 
@@ -116,6 +117,8 @@ async def _stream_execute(
     tool_plan: ToolPlan,
     providers: dict[str, WeatherProvider],
     result_box: list[ExecutionResult],
+    *,
+    now: datetime,
 ) -> AsyncIterator[SSEEvent]:
     """Bridges execute()'s emit callback into yielded step events (Task
     18.4's callback<->generator impedance match). Runs execute() as a
@@ -135,7 +138,7 @@ async def _stream_execute(
     async def emit(label: str, stage: PipelineStage) -> None:
         await queue.put(SSEEvent.step(label, stage))
 
-    execute_task = asyncio.ensure_future(execute(tool_plan, providers, emit=emit))
+    execute_task = asyncio.ensure_future(execute(tool_plan, providers, emit=emit, now=now))
     get_task: asyncio.Task[SSEEvent] | None = None
     try:
         while not execute_task.done():

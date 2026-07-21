@@ -405,7 +405,7 @@ def test_stream_execute_yields_steps_before_populating_result_box() -> None:
 
     async def drive():
         events = []
-        async for event in _stream_execute(built_plan, providers, result_box):
+        async for event in _stream_execute(built_plan, providers, result_box, now=_now()):
             assert result_box == []
             events.append(event)
         return events
@@ -426,7 +426,7 @@ def test_stream_execute_cancels_execute_task_on_early_generator_close() -> None:
     result_box: list = []
 
     async def drive():
-        gen = _stream_execute(built_plan, providers, result_box)
+        gen = _stream_execute(built_plan, providers, result_box, now=_now())
         await gen.__anext__()
         await provider.fetch_started.wait()
         await gen.aclose()

@@ -14,8 +14,9 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from skycast.domain.location import Location
-from skycast.domain.provider import ForecastRequest
+from skycast.domain.provider import Granularity, WeatherVariable
 from skycast.pipeline.data_needs import QueryIntent
+from skycast.pipeline.relative_time import RelativeTimeSpec
 
 
 class PlannedTool(StrEnum):
@@ -27,14 +28,21 @@ class PlannedCall(BaseModel):
     """One tool invocation in a ToolPlan.
 
     location_name is set for a GEOCODE call (the name to resolve). For
-    FETCH_FORECAST, request is always the executable request; location is
-    set only when coords are already known and geocode was skipped --
-    whether the alternative (a geocode dependency will supply the
-    location) holds is a cross-call fact, checked by ToolPlan, not here.
-    A FETCH_FORECAST call may also carry location_name alongside location
-    -- the query-named location this pre-resolved chain answers for --
-    but only together with location; never alone (that shape stays a
-    GEOCODE-call-only concept).
+    FETCH_FORECAST, granularities/variables are always the executable
+    request's ingredients; location is set only when coords are already
+    known and geocode was skipped -- whether the alternative (a geocode
+    dependency will supply the location) holds is a cross-call fact,
+    checked by ToolPlan, not here. A FETCH_FORECAST call may also carry
+    location_name alongside location -- the query-named location this
+    pre-resolved chain answers for -- but only together with location;
+    never alone (that shape stays a GEOCODE-call-only concept).
+
+    granularities/variables/time are not assembled into a ForecastRequest
+    here: time is a descriptor (ADR-0006), not yet a concrete window --
+    resolving it requires a timezone this chain doesn't have until
+    execute() knows its Location (post-geocode, or immediately for a
+    skip-geocode chain). execute() builds the real ForecastRequest right
+    before calling fetch_forecast.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -45,22 +53,39 @@ class PlannedCall(BaseModel):
     depends_on: list[str] = Field(default_factory=list)
     location_name: str | None = None
     location: Location | None = None
-    request: ForecastRequest | None = None
+    granularities: set[Granularity] | None = None
+    variables: set[WeatherVariable] | None = None
+    time: RelativeTimeSpec | None = None
 
     @model_validator(mode="after")
     def _require_fields_consistent_with_tool(self) -> "PlannedCall":
         if self.tool == PlannedTool.GEOCODE:
             if self.location_name is None:
                 raise ValueError("a GEOCODE call requires location_name")
-            if self.location is not None or self.request is not None:
-                raise ValueError("a GEOCODE call must not set location or request")
+            if (
+                self.location is not None
+                or self.granularities is not None
+                or self.variables is not None
+                or self.time is not None
+            ):
+                raise ValueError(
+                    "a GEOCODE call must not set location or forecast-request fields"
+                )
         else:
             if self.location_name is not None and self.location is None:
                 raise ValueError(
                     "a FETCH_FORECAST call may only set location_name together with location"
                 )
-            if self.request is None:
-                raise ValueError("a FETCH_FORECAST call requires request")
+            if self.granularities is None or self.variables is None:
+                raise ValueError(
+                    "a FETCH_FORECAST call requires granularities and variables"
+                )
+            needs_time = {Granularity.HOURLY, Granularity.DAILY} & self.granularities
+            if needs_time and self.time is None:
+                raise ValueError(
+                    "a FETCH_FORECAST call requires time when granularities "
+                    "includes HOURLY or DAILY"
+                )
         return self
 
 

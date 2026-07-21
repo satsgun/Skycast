@@ -5,14 +5,26 @@ chain, independent chains concurrent within each phase, every branch
 (0/1/2+ geocode matches, provider failure, unknown provider id) folded
 into one ExecutionResult. No exception escapes except a genuine
 programming bug -- ProviderError is always caught and mapped here.
+
+Also where each chain's ForecastRequest.window is actually computed
+(Task 21.4, ADR-0006): a PlannedCall carries a RelativeTimeSpec
+descriptor, not a concrete window, because plan() runs before geocoding
+and has no timezone to resolve one with. By the time _run_forecast
+needs a window, this chain's Location (and therefore its real timezone)
+is known -- whether from a fresh geocode or because it was already
+known (skip-geocode) -- so resolve_window() runs here, uniformly for
+every chain.
 """
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 
 from skycast.domain.location import Location
+from skycast.domain.provider import ForecastRequest
 from skycast.pipeline.execute_result import ExecutionResult, Failed, NeedsClarification, Success
 from skycast.pipeline.plan import PlannedCall, PlannedTool, ToolPlan
+from skycast.pipeline.resolve_window import resolve_window
 from skycast.providers.base import WeatherProvider
 from skycast.providers.errors import ProviderError
 from skycast.sse.payloads import ErrorKind, PipelineStage
@@ -21,7 +33,7 @@ Emit = Callable[[str, PipelineStage], Awaitable[None]]
 
 
 async def execute(
-    plan: ToolPlan, providers: dict[str, WeatherProvider], *, emit: Emit
+    plan: ToolPlan, providers: dict[str, WeatherProvider], *, emit: Emit, now: datetime
 ) -> ExecutionResult:
     forecast_calls = [c for c in plan.calls if c.tool == PlannedTool.FETCH_FORECAST]
     calls_by_id = {c.call_id: c for c in plan.calls}
@@ -52,7 +64,7 @@ async def execute(
     await emit(_forecast_label(forecast_calls), PipelineStage.EXECUTE_FORECAST)
     forecast_results = await _run_with_fail_fast(
         [
-            _run_forecast(call, location, providers)
+            _run_forecast(call, location, providers, now)
             for call, location in zip(forecast_calls, locations)
         ]
     )
@@ -95,7 +107,10 @@ async def _run_geocode(
 
 
 async def _run_forecast(
-    forecast_call: PlannedCall, location: Location, providers: dict[str, WeatherProvider]
+    forecast_call: PlannedCall,
+    location: Location,
+    providers: dict[str, WeatherProvider],
+    now: datetime,
 ) -> Success | Failed:
     provider = providers.get(forecast_call.provider)
     if provider is None:
@@ -104,8 +119,18 @@ async def _run_forecast(
             message=f"unknown provider id {forecast_call.provider!r}",
             for_location_name=location.name,
         )
+    assert forecast_call.granularities is not None  # guaranteed by PlannedCall's own validator
+    assert forecast_call.variables is not None
+    window = (
+        resolve_window(forecast_call.time, location.timezone, now)
+        if forecast_call.time is not None
+        else None
+    )
+    request = ForecastRequest(
+        granularities=forecast_call.granularities, window=window, variables=forecast_call.variables
+    )
     try:
-        forecast = await provider.fetch_forecast(location, forecast_call.request)
+        forecast = await provider.fetch_forecast(location, request)
     except ProviderError as exc:
         return Failed(
             kind=ErrorKind.PROVIDER_UNREACHABLE, message=str(exc), for_location_name=location.name

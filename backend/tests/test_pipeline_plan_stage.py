@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 import pytest
-from pydantic import ValidationError
 
 from skycast.domain.forecast import Forecast
 from skycast.domain.location import Location
@@ -9,7 +8,6 @@ from skycast.domain.provider import (
     ForecastRequest,
     Granularity,
     ProviderCapabilities,
-    TimeWindow,
     WeatherVariable,
 )
 from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
@@ -79,25 +77,27 @@ def test_single_location_by_name_produces_a_two_call_chain() -> None:
     assert forecast.tool is PlannedTool.FETCH_FORECAST
     assert forecast.depends_on == [geocode.call_id]
     assert forecast.provider == "open-meteo"
-    assert forecast.request == ForecastRequest(
-        granularities=spec.granularities, window=None, variables=spec.variables
-    )
+    assert forecast.granularities == spec.granularities
+    assert forecast.variables == spec.variables
+    assert forecast.time is None
     assert result.intent == spec.intent
 
 
-def test_hourly_spec_currently_fails_at_plan_pending_task_21_3_and_21_4() -> None:
-    """Known, accepted gap (Task 21.2): decompose no longer resolves a
-    concrete window, and plan() has no way to produce one for an
-    HOURLY/DAILY spec until the resolver (21.3) is wired in post-geocode
-    (21.4). Update/remove once those land.
+def test_hourly_spec_now_succeeds_at_plan_carrying_time_for_later_resolution() -> None:
+    """Closes the gap Task 21.2 pinned: decompose no longer resolves a
+    concrete window itself, but plan() no longer needs one either -- it
+    carries the RelativeTimeSpec on the PlannedCall for execute() (Task
+    21.4) to resolve once a real timezone is known post-geocode.
     """
-    spec = _spec(
-        granularities={Granularity.HOURLY},
-        time=RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING),
-    )
+    time_spec = RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING)
+    spec = _spec(granularities={Granularity.HOURLY}, time=time_spec)
 
-    with pytest.raises(ValidationError):
-        plan(spec, {"open-meteo": InMemoryProvider()})
+    result = plan(spec, {"open-meteo": InMemoryProvider()})
+
+    assert len(result.calls) == 2
+    forecast = result.calls[1]
+    assert forecast.granularities == {Granularity.HOURLY}
+    assert forecast.time == time_spec
 
 
 def test_default_location_with_known_coords_skips_geocode() -> None:

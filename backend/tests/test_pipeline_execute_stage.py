@@ -16,11 +16,15 @@ from skycast.pipeline.execute_result import Failed, NeedsClarification, Success
 from skycast.pipeline.execute_stage import _prioritize, _resolved_locations, _run_with_fail_fast, execute
 from skycast.pipeline.plan import PlannedCall, PlannedTool
 from skycast.pipeline.plan_stage import plan
+from skycast.pipeline.relative_time import RelativeTimeKind, RelativeTimeSpec
+from skycast.pipeline.resolve_window import resolve_window
 from skycast.providers.base import WeatherProvider
 from skycast.providers.errors import ProviderError
 from skycast.providers.in_memory import InMemoryProvider
 from skycast.sse.payloads import ErrorKind, PipelineStage
 from tests.helpers import RecordingEmitter
+
+_NOW = datetime(2026, 7, 7, 12, 0, tzinfo=timezone.utc)
 
 
 def _spec(**overrides) -> DataNeedsSpec:
@@ -34,9 +38,9 @@ def _spec(**overrides) -> DataNeedsSpec:
     return DataNeedsSpec(**defaults)
 
 
-def _location(name: str, lat: float = 0.0, lon: float = 0.0) -> Location:
+def _location(name: str, lat: float = 0.0, lon: float = 0.0, tz: str = "UTC") -> Location:
     return Location(
-        id=f"test:{name.lower()}", name=name, latitude=lat, longitude=lon, timezone="UTC"
+        id=f"test:{name.lower()}", name=name, latitude=lat, longitude=lon, timezone=tz
     )
 
 
@@ -63,7 +67,7 @@ def test_happy_single_chain_by_name() -> None:
     built_plan = plan(spec, providers)
     emitter = RecordingEmitter()
 
-    result = _run(execute(built_plan, providers, emit=emitter))
+    result = _run(execute(built_plan, providers, emit=emitter, now=_NOW))
 
     assert isinstance(result, Success)
     assert len(result.forecasts) == 1
@@ -80,7 +84,7 @@ def test_skip_geocode_chain_makes_no_geocode_call() -> None:
     built_plan = plan(spec, providers, default_location=default)
     emitter = RecordingEmitter()
 
-    result = _run(execute(built_plan, providers, emit=emitter))
+    result = _run(execute(built_plan, providers, emit=emitter, now=_NOW))
 
     assert isinstance(result, Success)
     assert [stage for _, stage in emitter.calls] == [PipelineStage.EXECUTE_FORECAST]
@@ -97,7 +101,7 @@ def test_location_name_matching_default_location_makes_no_geocode_call() -> None
     built_plan = plan(spec, providers, default_location=hyderabad)
     emitter = RecordingEmitter()
 
-    result = _run(execute(built_plan, providers, emit=emitter))
+    result = _run(execute(built_plan, providers, emit=emitter, now=_NOW))
 
     assert isinstance(result, Success)
     assert [stage for _, stage in emitter.calls] == [PipelineStage.EXECUTE_FORECAST]
@@ -108,7 +112,7 @@ def test_zero_matches_is_not_found() -> None:
     providers = {"open-meteo": InMemoryProvider()}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.NOT_FOUND
@@ -120,7 +124,7 @@ def test_ambiguous_match_needs_clarification() -> None:
     providers = {"open-meteo": InMemoryProvider()}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, NeedsClarification)
     assert len(result.candidates) == 3
@@ -132,7 +136,7 @@ def test_forecast_provider_outage_is_provider_unreachable() -> None:
     providers = {"open-meteo": InMemoryProvider(fail_forecast=True)}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.PROVIDER_UNREACHABLE
@@ -143,7 +147,7 @@ def test_geocode_provider_outage_is_provider_unreachable() -> None:
     providers = {"open-meteo": InMemoryProvider(fail_geocode=True)}
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.PROVIDER_UNREACHABLE
@@ -166,7 +170,7 @@ def test_comparison_happy_path_two_forecasts_in_chain_order() -> None:
     providers = _comparison_providers()
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Success)
     assert len(result.forecasts) == 2
@@ -210,7 +214,7 @@ def test_independent_geocode_chains_run_concurrently() -> None:
     # execute() will fail at the forecast phase (fetch_forecast unimplemented),
     # but the geocode phase's concurrency already happened by then.
     with pytest.raises(NotImplementedError):
-        _run(execute(built_plan, providers, emit=RecordingEmitter()))
+        _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     starts = [e for e in events if e.startswith("geocode-start")]
     ends = [e for e in events if e.startswith("geocode-end")]
@@ -238,7 +242,7 @@ def test_comparison_ambiguous_plus_success_needs_clarification() -> None:
     spec = _spec(location_names=["Springfield", "Miami"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, NeedsClarification)
     assert result.for_location_name == "Springfield"
@@ -264,7 +268,7 @@ def test_double_ambiguous_comparison_resolved_is_empty() -> None:
     spec = _spec(location_names=["Springfield", "London"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, NeedsClarification)
     assert result.for_location_name == "Springfield"
@@ -285,7 +289,7 @@ def test_resolved_excludes_failed_sibling() -> None:
     spec = _spec(location_names=["Springfield", "Nowhereville"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, NeedsClarification)
     assert result.resolved == {}
@@ -310,7 +314,7 @@ def test_carries_forward_previously_resolved_location_through_pre_resolved_chain
     spec = _spec(location_names=["Mumbai", "Delhi"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers, resolved_locations={"Mumbai": mumbai})
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, NeedsClarification)
     assert result.for_location_name == "Delhi"
@@ -352,7 +356,7 @@ def test_comparison_provider_unreachable_wins_over_ambiguous_and_cancels_slow_si
     spec = _spec(location_names=["ambiguous-city", "failing-city"], intent=QueryIntent.COMPARISON)
     built_plan = plan(spec, providers)
 
-    result = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.PROVIDER_UNREACHABLE
@@ -363,7 +367,7 @@ def test_unknown_provider_id_is_internal_error() -> None:
     spec = _spec(location_names=["Hyderabad"])
     built_plan = plan(spec, {"open-meteo": InMemoryProvider()})
 
-    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.INTERNAL
@@ -377,7 +381,7 @@ def test_unknown_provider_id_on_skip_geocode_chain_is_internal_error() -> None:
     default = _location("Hyderabad", 17.385, 78.4867)
     built_plan = plan(spec, {"open-meteo": InMemoryProvider()}, default_location=default)
 
-    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=RecordingEmitter()))
+    result = _run(execute(built_plan, {"other-id": InMemoryProvider()}, emit=RecordingEmitter(), now=_NOW))
 
     assert isinstance(result, Failed)
     assert result.kind == ErrorKind.INTERNAL
@@ -389,10 +393,89 @@ def test_determinism_same_plan_and_providers_produce_equal_result() -> None:
     providers = {"open-meteo": InMemoryProvider(now=lambda: fixed_now)}
     built_plan = plan(spec, providers)
 
-    first = _run(execute(built_plan, providers, emit=RecordingEmitter()))
-    second = _run(execute(built_plan, providers, emit=RecordingEmitter()))
+    first = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
+    second = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
 
     assert first == second
+
+
+# --- Task 21.4: window resolution wiring ---
+
+
+def test_hourly_chain_resolves_window_from_geocoded_locations_timezone() -> None:
+    """The actual point of Task 21.4: a geocode-needing HOURLY chain gets
+    its window resolved from the *geocoded* Location's real timezone --
+    the structural fix for the "hourly weather this evening Hyderabad"
+    bug (originally patched with a decompose prompt reword).
+    """
+    time_spec = RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING)
+    spec = _spec(
+        location_names=["Hyderabad"],
+        granularities={Granularity.HOURLY},
+        time=time_spec,
+    )
+    providers = {"open-meteo": InMemoryProvider()}
+    built_plan = plan(spec, providers)
+
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
+
+    assert isinstance(result, Success)
+    forecast = result.forecasts[0]
+    expected = resolve_window(time_spec, forecast.location.timezone, _NOW)
+    assert forecast.hourly[0].timestamp == expected.start
+    assert forecast.hourly[-1].timestamp == expected.end
+
+
+def test_skip_geocode_hourly_chain_resolves_window_immediately() -> None:
+    """Skip-geocode chains (default/carried/resolved coords) already know
+    their timezone -- no ordering issue resolving the window, same code
+    path as the geocode-needing case above.
+    """
+    time_spec = RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING)
+    spec = _spec(location_names=[], granularities={Granularity.HOURLY}, time=time_spec)
+    providers = {"open-meteo": _GeocodeSpyProvider()}
+    default = _location("Hyderabad", 17.385, 78.4867, tz="Asia/Kolkata")
+    built_plan = plan(spec, providers, default_location=default)
+
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
+
+    assert isinstance(result, Success)
+    forecast = result.forecasts[0]
+    expected = resolve_window(time_spec, "Asia/Kolkata", _NOW)
+    assert forecast.hourly[0].timestamp == expected.start
+    assert forecast.hourly[-1].timestamp == expected.end
+
+
+def test_comparison_resolves_each_chains_window_from_its_own_timezone() -> None:
+    """A comparison across timezones resolves each side in its own tz
+    (Task 21's own out-of-scope note: verify, don't over-engineer)."""
+    time_spec = RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING)
+    provider = InMemoryProvider(
+        locations={
+            "tokyo": [_location("Tokyo", 35.6895, 139.6917, tz="Asia/Tokyo")],
+            "los angeles": [_location("Los Angeles", 34.0522, -118.2437, tz="America/Los_Angeles")],
+        }
+    )
+    providers = {"open-meteo": provider}
+    spec = _spec(
+        location_names=["Tokyo", "Los Angeles"],
+        granularities={Granularity.HOURLY},
+        time=time_spec,
+        intent=QueryIntent.COMPARISON,
+    )
+    built_plan = plan(spec, providers)
+
+    result = _run(execute(built_plan, providers, emit=RecordingEmitter(), now=_NOW))
+
+    assert isinstance(result, Success)
+    tokyo_forecast, la_forecast = result.forecasts
+    assert tokyo_forecast.hourly[0].timestamp == resolve_window(
+        time_spec, "Asia/Tokyo", _NOW
+    ).start
+    assert la_forecast.hourly[0].timestamp == resolve_window(
+        time_spec, "America/Los_Angeles", _NOW
+    ).start
+    assert tokyo_forecast.hourly[0].timestamp != la_forecast.hourly[0].timestamp
 
 
 # --- _prioritize unit tests ---
@@ -436,7 +519,7 @@ def test_resolved_locations_pairs_named_geocode_results() -> None:
     forecast = PlannedCall(
         call_id="forecast-0", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
         depends_on=["geocode-0"],
-        request=ForecastRequest(granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE}),
+        granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE},
     )
     geocode = PlannedCall(
         call_id="geocode-0", tool=PlannedTool.GEOCODE, provider="open-meteo", location_name="Miami",
@@ -453,7 +536,7 @@ def test_resolved_locations_includes_pre_resolved_chain_with_name() -> None:
     forecast = PlannedCall(
         call_id="forecast-0", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
         location=mumbai, location_name="Mumbai",
-        request=ForecastRequest(granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE}),
+        granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE},
     )
 
     result = _resolved_locations([forecast], [None], [])
@@ -465,7 +548,7 @@ def test_resolved_locations_excludes_ambiguous_and_failed_siblings() -> None:
     forecast = PlannedCall(
         call_id="forecast-0", tool=PlannedTool.FETCH_FORECAST, provider="open-meteo",
         depends_on=["geocode-0"],
-        request=ForecastRequest(granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE}),
+        granularities={Granularity.CURRENT}, variables={WeatherVariable.TEMPERATURE},
     )
     geocode = PlannedCall(
         call_id="geocode-0", tool=PlannedTool.GEOCODE, provider="open-meteo", location_name="Springfield",
