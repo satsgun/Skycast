@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from pydantic import ValidationError
 
 from skycast.domain.forecast import Forecast
 from skycast.domain.location import Location
@@ -15,6 +16,7 @@ from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
 from skycast.pipeline.errors import NoCapableProviderError, NoLocationError
 from skycast.pipeline.plan import PlannedTool
 from skycast.pipeline.plan_stage import plan
+from skycast.pipeline.relative_time import RelativeTimeKind, RelativeTimeSpec
 from skycast.providers.base import WeatherProvider
 from skycast.providers.in_memory import InMemoryProvider
 
@@ -78,9 +80,24 @@ def test_single_location_by_name_produces_a_two_call_chain() -> None:
     assert forecast.depends_on == [geocode.call_id]
     assert forecast.provider == "open-meteo"
     assert forecast.request == ForecastRequest(
-        granularities=spec.granularities, window=spec.window, variables=spec.variables
+        granularities=spec.granularities, window=None, variables=spec.variables
     )
     assert result.intent == spec.intent
+
+
+def test_hourly_spec_currently_fails_at_plan_pending_task_21_3_and_21_4() -> None:
+    """Known, accepted gap (Task 21.2): decompose no longer resolves a
+    concrete window, and plan() has no way to produce one for an
+    HOURLY/DAILY spec until the resolver (21.3) is wired in post-geocode
+    (21.4). Update/remove once those land.
+    """
+    spec = _spec(
+        granularities={Granularity.HOURLY},
+        time=RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING),
+    )
+
+    with pytest.raises(ValidationError):
+        plan(spec, {"open-meteo": InMemoryProvider()})
 
 
 def test_default_location_with_known_coords_skips_geocode() -> None:

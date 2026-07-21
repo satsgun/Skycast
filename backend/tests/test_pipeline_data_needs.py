@@ -1,17 +1,13 @@
-from datetime import datetime, timezone
-
 import pytest
 from pydantic import ValidationError
 
-from skycast.domain.provider import Granularity, TimeWindow, WeatherVariable
+from skycast.domain.provider import Granularity, WeatherVariable
 from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
+from skycast.pipeline.relative_time import RelativeTimeKind, RelativeTimeSpec
 
 
-def _window() -> TimeWindow:
-    return TimeWindow(
-        start=datetime(2024, 1, 1, tzinfo=timezone.utc),
-        end=datetime(2024, 1, 2, tzinfo=timezone.utc),
-    )
+def _time() -> RelativeTimeSpec:
+    return RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING)
 
 
 def test_query_intent_has_exactly_four_members() -> None:
@@ -23,25 +19,25 @@ def test_query_intent_has_exactly_four_members() -> None:
     }
 
 
-def test_current_only_spec_without_window_is_valid() -> None:
+def test_current_only_spec_without_time_is_valid() -> None:
     spec = DataNeedsSpec(
         location_names=["Hyderabad"],
         granularities={Granularity.CURRENT},
         variables={WeatherVariable.TEMPERATURE},
         intent=QueryIntent.CONDITIONS,
     )
-    assert spec.window is None
+    assert spec.time is None
 
 
-def test_hourly_spec_with_window_is_valid() -> None:
+def test_hourly_spec_with_time_is_valid() -> None:
     spec = DataNeedsSpec(
         location_names=["Hyderabad"],
         granularities={Granularity.HOURLY},
-        window=_window(),
+        time=_time(),
         variables={WeatherVariable.PRECIP_PROBABILITY},
         intent=QueryIntent.DECISION,
     )
-    assert spec.window is not None
+    assert spec.time is not None
 
 
 def test_empty_granularities_is_rejected() -> None:
@@ -65,7 +61,7 @@ def test_empty_variables_is_rejected() -> None:
 
 
 @pytest.mark.parametrize("granularity", [Granularity.HOURLY, Granularity.DAILY])
-def test_window_required_for_hourly_or_daily(granularity: Granularity) -> None:
+def test_time_required_for_hourly_or_daily(granularity: Granularity) -> None:
     with pytest.raises(ValidationError):
         DataNeedsSpec(
             location_names=[],
@@ -171,11 +167,11 @@ def test_current_only_spec_round_trips_through_json() -> None:
     assert DataNeedsSpec.model_validate_json(spec.model_dump_json()) == spec
 
 
-def test_hourly_with_window_spec_round_trips_through_json() -> None:
+def test_hourly_with_time_spec_round_trips_through_json() -> None:
     spec = DataNeedsSpec(
         location_names=["Springfield"],
         granularities={Granularity.HOURLY, Granularity.DAILY},
-        window=_window(),
+        time=_time(),
         variables={WeatherVariable.PRECIP_PROBABILITY, WeatherVariable.WIND_SPEED},
         intent=QueryIntent.OUTLOOK,
     )

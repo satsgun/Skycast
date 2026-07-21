@@ -14,10 +14,12 @@ pipeline logic.
 #   message).
 # - Output: exactly one tool call to `emit_data_needs` whose arguments
 #   match `DataNeedsSpec`'s schema -- no free text.
-# - The model must resolve relative time expressions ("this evening",
-#   "tomorrow") to concrete `TimeWindow` bounds itself, using the target
-#   location's timezone and the `now` supplied in context -- never assume
-#   UTC or guess a timezone-naive "now" of its own.
+# - The model names relative time expressions ("this evening", "tomorrow")
+#   as a `RelativeTimeSpec` descriptor (kind + params) rather than
+#   resolving them to absolute bounds itself (ADR-0006, Task 21) --
+#   decompose runs before geocoding, so it has no reliable timezone to
+#   resolve them with; a later stage turns the descriptor into a concrete
+#   `TimeWindow` once one is known.
 DECOMPOSE_SYSTEM_PROMPT = """\
 You are the decompose stage of a weather assistant. Read the user's \
 natural-language weather question and the session context that follows \
@@ -47,22 +49,21 @@ same-day window (e.g. "this evening", "in the next few hours"), DAILY \
 for anything spanning one or more calendar days (e.g. "tomorrow", \
 "this weekend", "this week"). Include more than one only if the \
 question genuinely needs both.
-- window: required whenever granularities includes HOURLY or DAILY; \
-omit it for CURRENT-only questions. Resolve relative time expressions \
-("this evening", "tomorrow", "this weekend") into concrete start/end \
-timestamps yourself, always grounded in the target location's real \
-local timezone -- the output timestamps are UTC instants, but they \
-must correspond to the right local hours, never the local hour numbers \
-stamped with a UTC offset. To find that timezone: if the location \
-named in the query is the same place as the default location or the \
-carried location above, use the timezone given for it there; \
-otherwise use your own knowledge of that place's real-world timezone \
--- every named place has one, so reason about it rather than falling \
-back to the current time's UTC offset. If the query names no explicit \
-time but the session context includes a carried time window from the \
-prior turn, use that. "Evening" means roughly 17:00-21:00 local time; \
-"morning" 06:00-11:00; a bare day name or "tomorrow" means that whole \
-local calendar day.
+- time: required whenever granularities includes HOURLY or DAILY; omit \
+it for CURRENT-only questions. Do not resolve a timezone or compute \
+absolute timestamps yourself -- a later stage does that, once the \
+target location's real timezone is known from geocoding. Instead, name \
+which kind of span the query means: NOW for the present moment, TODAY \
+for the rest of the local day, THIS_EVENING for a local-evening window \
+(roughly 17:00-21:00 local), TOMORROW for the whole next local calendar \
+day, NEXT_N_DAYS with day_count set to how many calendar days out the \
+question's horizon extends, counting today as day 1 (e.g. day_count=3 \
+for "the next 3 days"), or ABSOLUTE with clock_time set to the \
+wall-clock time named (and day_offset set if a day was also named, \
+e.g. "2pm tomorrow" -> clock_time=14:00, day_offset=1). If the query \
+names no explicit time but the session context includes a carried time \
+window from the prior turn, pick whichever kind best describes that \
+carried span.
 - variables: only the specific variables the question needs -- \
 TEMPERATURE, FEELS_LIKE, PRECIP_PROBABILITY, PRECIP_AMOUNT, WIND_SPEED, \
 CONDITION. Be selective, not exhaustive: an umbrella question needs \

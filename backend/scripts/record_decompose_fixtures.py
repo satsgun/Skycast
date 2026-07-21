@@ -35,12 +35,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from skycast.domain.location import Location
-from skycast.domain.provider import Granularity, TimeWindow, WeatherVariable
+from skycast.domain.provider import Granularity, WeatherVariable
 from skycast.llm.anthropic_client import AnthropicLLMClient
 from skycast.llm.client import LLMClient
 from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
 from skycast.pipeline.decompose import _build_user_message, decompose
 from skycast.pipeline.prompts import DECOMPOSE_SYSTEM_PROMPT
+from skycast.pipeline.relative_time import RelativeTimeKind, RelativeTimeSpec
 from skycast.pipeline.session_context import SessionContext
 
 _FIXTURES_DIR = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "decompose"
@@ -81,10 +82,7 @@ _SCENARIOS: list[_Scenario] = [
         placeholder_response=DataNeedsSpec(
             location_names=[],
             granularities={Granularity.HOURLY},
-            window=TimeWindow(
-                start=datetime(2026, 7, 7, 12, 30, tzinfo=timezone.utc),
-                end=datetime(2026, 7, 7, 17, 30, tzinfo=timezone.utc),
-            ),
+            time=RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING),
             variables={WeatherVariable.PRECIP_PROBABILITY},
             intent=QueryIntent.DECISION,
         ),
@@ -107,17 +105,18 @@ _SCENARIOS: list[_Scenario] = [
         placeholder_response=DataNeedsSpec(
             location_names=["Hyderabad"],
             granularities={Granularity.HOURLY},
-            # "Evening" (17:00-21:00 local) in Asia/Kolkata (UTC+5:30) is
-            # 11:30-15:30 UTC -- regression coverage for a bug where the
-            # model, given a location named in the query text rather than
-            # left implicit, failed to connect it to the default
-            # location's timezone above and produced a UTC-anchored
-            # window instead (returning late-night/early-morning IST
-            # hours for an "evening" query).
-            window=TimeWindow(
-                start=datetime(2026, 7, 7, 11, 30, tzinfo=timezone.utc),
-                end=datetime(2026, 7, 7, 15, 30, tzinfo=timezone.utc),
-            ),
+            # Confirms location_names is populated (the query names
+            # "Hyderabad" explicitly, even though it also happens to be
+            # the default location above) alongside a THIS_EVENING time
+            # descriptor. Resolving that descriptor into concrete local
+            # hours -- what used to be decompose's job, and the source of
+            # a real timezone bug (a query-named location that shares
+            # the default location's name got stamped with UTC-offset
+            # hours instead of its real local evening) -- has moved
+            # downstream to a resolver that runs after geocoding
+            # (Task 21.3/21.4, not yet landed); decompose itself no
+            # longer touches timezones at all.
+            time=RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING),
             variables={WeatherVariable.TEMPERATURE, WeatherVariable.CONDITION},
             intent=QueryIntent.OUTLOOK,
         ),
@@ -129,10 +128,7 @@ _SCENARIOS: list[_Scenario] = [
         placeholder_response=DataNeedsSpec(
             location_names=["Austin"],
             granularities={Granularity.DAILY},
-            window=TimeWindow(
-                start=datetime(2026, 7, 11, 0, 0, tzinfo=timezone.utc),
-                end=datetime(2026, 7, 12, 23, 59, tzinfo=timezone.utc),
-            ),
+            time=RelativeTimeSpec(kind=RelativeTimeKind.NEXT_N_DAYS, day_count=5),
             variables={
                 WeatherVariable.TEMPERATURE,
                 WeatherVariable.PRECIP_PROBABILITY,
@@ -170,10 +166,7 @@ _SCENARIOS: list[_Scenario] = [
         placeholder_response=DataNeedsSpec(
             location_names=["Springfield"],
             granularities={Granularity.DAILY},
-            window=TimeWindow(
-                start=datetime(2026, 7, 8, 0, 0, tzinfo=timezone.utc),
-                end=datetime(2026, 7, 8, 23, 59, tzinfo=timezone.utc),
-            ),
+            time=RelativeTimeSpec(kind=RelativeTimeKind.TOMORROW),
             variables={WeatherVariable.TEMPERATURE, WeatherVariable.CONDITION},
             intent=QueryIntent.OUTLOOK,
         ),

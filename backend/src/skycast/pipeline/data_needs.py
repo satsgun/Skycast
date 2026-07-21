@@ -16,7 +16,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from skycast.domain.provider import Granularity, TimeWindow, WeatherVariable
+from skycast.domain.provider import Granularity, WeatherVariable
+from skycast.pipeline.relative_time import RelativeTimeSpec
 
 
 class QueryIntent(StrEnum):
@@ -33,15 +34,19 @@ class DataNeedsSpec(BaseModel):
     location resolution: empty means no location was named (use the
     default location); one entry is the normal case; two or more means a
     comparison, and must pair with intent=COMPARISON (enforced below).
-    window is required whenever granularities includes HOURLY or DAILY;
-    may be omitted for CURRENT-only, mirroring ForecastRequest.
+    time is required whenever granularities includes HOURLY or DAILY;
+    may be omitted for CURRENT-only, mirroring ForecastRequest. Unlike
+    ForecastRequest's window, time is a descriptor of the query's time
+    *intent* (ADR-0006) -- decompose runs before geocoding, so it has no
+    reliable timezone to resolve absolute bounds with; a later stage
+    turns this into a concrete TimeWindow once one is known.
     """
 
     model_config = ConfigDict(frozen=True)
 
     location_names: list[str]
     granularities: set[Granularity] = Field(min_length=1)
-    window: TimeWindow | None = None
+    time: RelativeTimeSpec | None = None
     variables: set[WeatherVariable] = Field(min_length=1)
     intent: QueryIntent
 
@@ -51,11 +56,11 @@ class DataNeedsSpec(BaseModel):
         return len(self.location_names) == 0
 
     @model_validator(mode="after")
-    def _require_window_for_hourly_or_daily(self) -> "DataNeedsSpec":
-        needs_window = {Granularity.HOURLY, Granularity.DAILY} & self.granularities
-        if needs_window and self.window is None:
+    def _require_time_for_hourly_or_daily(self) -> "DataNeedsSpec":
+        needs_time = {Granularity.HOURLY, Granularity.DAILY} & self.granularities
+        if needs_time and self.time is None:
             raise ValueError(
-                "window is required when granularities includes HOURLY or DAILY"
+                "time is required when granularities includes HOURLY or DAILY"
             )
         return self
 

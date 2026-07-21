@@ -10,6 +10,7 @@ from skycast.llm.fake_client import FakeLLMClient
 from skycast.pipeline.data_needs import DataNeedsSpec, QueryIntent
 from skycast.pipeline.decompose import decompose
 from skycast.pipeline.prompts import DECOMPOSE_SYSTEM_PROMPT
+from skycast.pipeline.relative_time import RelativeTimeKind, RelativeTimeSpec
 from skycast.pipeline.session_context import SessionContext
 
 _QUERY = "do I need an umbrella this evening?"
@@ -50,10 +51,7 @@ def _canned_spec() -> DataNeedsSpec:
     return DataNeedsSpec(
         location_names=[],
         granularities={Granularity.HOURLY},
-        window=TimeWindow(
-            start=datetime(2026, 7, 7, 18, 0, tzinfo=timezone.utc),
-            end=datetime(2026, 7, 7, 22, 0, tzinfo=timezone.utc),
-        ),
+        time=RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING),
         variables={WeatherVariable.PRECIP_PROBABILITY},
         intent=QueryIntent.DECISION,
     )

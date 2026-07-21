@@ -50,8 +50,14 @@ def plan(
     targets = _resolve_targets(
         spec, default_location=default_location, resolved_locations=resolved_locations
     )
+    # TODO(Task 21.3/21.4): spec.time is a descriptor, not a concrete
+    # window -- decompose no longer resolves one (ADR-0006). Until the
+    # resolver is wired in post-geocode, window is always None here, so
+    # ForecastRequest construction below fails its own validator for any
+    # HOURLY/DAILY spec. Known, accepted gap; see
+    # test_pipeline_plan_stage.py's pinning test.
     request = ForecastRequest(
-        granularities=spec.granularities, window=spec.window, variables=spec.variables
+        granularities=spec.granularities, window=None, variables=spec.variables
     )
 
     calls: list[PlannedCall] = []
@@ -60,7 +66,7 @@ def plan(
         selected = select_provider(
             required_variables=spec.variables,
             granularities=spec.granularities,
-            window=spec.window,
+            window=None,
             providers=list(providers.values()),
             needs_geocoding=is_name,
         )
