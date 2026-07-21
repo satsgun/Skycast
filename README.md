@@ -183,7 +183,7 @@ See `backend/eval/README.md` for the tier breakdown and scoring design.
 - [Implementation Notes](https://github.com/satsgun/Skycast/wiki/06-‐-SkyCast-—-Implementation-Notes)
 - [System Architecture diagrams](https://github.com/satsgun/Skycast/wiki/Skycast-—-System-Architecture)
 - [Roadmap (post-v1)](<https://github.com/satsgun/Skycast/wiki/07-‐-Skycast-—-Roadmap-(post‐v1)>)
-- ADR-0001 through ADR-0006 — the design decisions behind the pipeline
+- [ADR-0001 through ADR-0006](https://github.com/satsgun/Skycast/wiki/SkyCast-%E2%80%94-The-ADR-Set) — the design decisions behind the pipeline
   split, provider interface, transport, stack/hosting, code-gen
   sandbox, and relative-time resolution.
 - [SSE contract](docs/sse-contract.md) — the generated, always-current
