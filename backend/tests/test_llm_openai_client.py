@@ -6,7 +6,7 @@ import pytest
 from openai import APIConnectionError, AsyncOpenAI, OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from pydantic import BaseModel
 
 from skycast.llm.openai_client import OpenAILLMClient, _sanitize_schema
@@ -22,21 +22,30 @@ class _Canned(BaseModel):
     value: str
 
 
-def _usage() -> CompletionUsage:
-    return CompletionUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+def _usage(
+    *, cached_tokens: int | None = None, cache_write_tokens: int | None = None
+) -> CompletionUsage:
+    details = None
+    if cached_tokens is not None or cache_write_tokens is not None:
+        details = PromptTokensDetails(cached_tokens=cached_tokens, cache_write_tokens=cache_write_tokens)
+    return CompletionUsage(
+        prompt_tokens=10, completion_tokens=5, total_tokens=15, prompt_tokens_details=details
+    )
 
 
-def _chat_completion(*, content: str | None = None, refusal: str | None = None) -> ChatCompletion:
+def _chat_completion(
+    *, content: str | None = None, refusal: str | None = None, usage: CompletionUsage | None = None
+) -> ChatCompletion:
     message = ChatCompletionMessage(role="assistant", content=content, refusal=refusal)
     choice = Choice(finish_reason="stop", index=0, message=message)
     return ChatCompletion(
         id="chatcmpl_1", choices=[choice], created=1, model="gpt-5", object="chat.completion",
-        usage=_usage(),
+        usage=usage if usage is not None else _usage(),
     )
 
 
-def _valid_completion(data: dict) -> ChatCompletion:
-    return _chat_completion(content=json.dumps(data))
+def _valid_completion(data: dict, *, usage: CompletionUsage | None = None) -> ChatCompletion:
+    return _chat_completion(content=json.dumps(data), usage=usage)
 
 
 def _invalid_completion() -> ChatCompletion:
@@ -324,6 +333,48 @@ def test_exception_during_repair_call_records_first_calls_usage_but_not_last_usa
     # produced a final answer, so last_usage isn't attributed to it.
     assert client.last_usage is None
     assert client.cumulative_usage == Usage(input_tokens=10, output_tokens=5, model="gpt-5")
+
+
+# --- Task 23.3: caching (automatic -- reads reported cache counts) ---
+
+
+def test_message_order_already_has_system_prompt_leading() -> None:
+    """No cache_control opt-in exists for OpenAI -- caching engages
+    automatically as long as the stable content leads. Confirms the
+    request shape already satisfies that, unchanged.
+    """
+    client, fake_chat = _build_client([_valid_completion({"value": "sunny"})])
+
+    _run_get_structured(client)
+
+    call = fake_chat.completions.calls[0]
+    assert call["messages"][0] == {"role": "system", "content": "sys prompt"}
+    assert call["messages"][1] == {"role": "user", "content": "what's the weather"}
+
+
+def test_cache_counts_from_response_are_captured_into_usage() -> None:
+    client, _ = _build_client(
+        [
+            _valid_completion(
+                {"value": "sunny"},
+                usage=_usage(cached_tokens=900, cache_write_tokens=100),
+            )
+        ]
+    )
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_read_tokens == 900
+    assert client.last_usage.cache_write_tokens == 100
+
+
+def test_cache_counts_default_to_zero_when_response_omits_prompt_tokens_details() -> None:
+    client, _ = _build_client([_valid_completion({"value": "sunny"})])
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_read_tokens == 0
+    assert client.last_usage.cache_write_tokens == 0
 
 
 # --- _sanitize_schema ---

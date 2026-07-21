@@ -157,11 +157,23 @@ class OpenAILLMClient(LLMClient):
         across a repair retry, if one happens). Only called after a
         successful _parse() -- a call that raises never reaches here, so
         a failed call can't corrupt cumulative_usage.
+
+        Prompt caching (Task 23.3) is automatic on OpenAI's side -- no
+        cache_control opt-in, it just needs the stable content (system
+        prompt + schema) to lead and exceed ~1024 tokens, which
+        get_structured's message order already satisfies. Below that
+        threshold caching simply doesn't engage (cached_tokens stays 0;
+        not an error). completion.usage.prompt_tokens_details is None
+        on a response with no cache data at all (older responses, or a
+        request where caching never had a chance to engage).
         """
+        details = completion.usage.prompt_tokens_details
         usage = Usage(
             input_tokens=completion.usage.prompt_tokens,
             output_tokens=completion.usage.completion_tokens,
             model=self._model,
+            cache_read_tokens=(details.cached_tokens or 0) if details is not None else 0,
+            cache_write_tokens=(details.cache_write_tokens or 0) if details is not None else 0,
         )
         self.cumulative_usage = (
             usage if self.cumulative_usage is None else self.cumulative_usage + usage
