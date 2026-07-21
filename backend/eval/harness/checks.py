@@ -1,0 +1,129 @@
+"""Reusable property checks.
+
+Generic, composable assertions shared across cases. Case-specific checks
+(e.g. "window is Tokyo-local evening") live inline in the dataset; these
+are the common ones. Each returns a Check whose predicate yields
+(passed, human-readable detail).
+"""
+
+from __future__ import annotations
+
+import re
+
+from eval.harness.types import Check
+
+# ----- decompose (DataNeedsSpec) property checks -----
+
+
+def spec_intent_is(expected: str) -> Check:
+    def p(spec):
+        actual = getattr(spec.intent, "value", str(spec.intent))
+        return actual == expected, f"intent={actual} expected={expected}"
+    return Check(f"intent=={expected}", p)
+
+
+def spec_location_count(n: int) -> Check:
+    def p(spec):
+        c = len(spec.location_names)
+        return c == n, f"location_names count={c} expected={n}"
+    return Check(f"location_count=={n}", p)
+
+
+def spec_names_default_location() -> Check:
+    def p(spec):
+        return spec.use_default_location, (
+            f"use_default_location={spec.use_default_location} "
+            f"(location_names={spec.location_names})"
+        )
+    return Check("uses_default_location", p)
+
+
+def spec_has_variable(var: str) -> Check:
+    def p(spec):
+        vals = {getattr(v, "value", str(v)) for v in spec.variables}
+        return var in vals, f"variables={sorted(vals)} want {var}"
+    return Check(f"has_variable[{var}]", p)
+
+
+def spec_has_granularity(g: str) -> Check:
+    def p(spec):
+        vals = {getattr(x, "value", str(x)) for x in spec.granularities}
+        return g in vals, f"granularities={sorted(vals)} want {g}"
+    return Check(f"has_granularity[{g}]", p)
+
+
+def spec_time_kind_is(expected: str) -> Check:
+    """Exact-match check on the descriptor's kind (post-Task 21): decompose
+    emits a RelativeTimeSpec now, not absolute timestamps, so there's no
+    window left to tolerance-score -- it either named the right kind or
+    it didn't.
+    """
+    def p(spec):
+        t = getattr(spec, "time", None)
+        if t is None:
+            return False, "no time on spec"
+        actual = getattr(t.kind, "value", str(t.kind))
+        return actual == expected, f"time.kind={actual} expected={expected}"
+    return Check(f"time_kind=={expected}", p)
+
+
+# ----- synthesize (AnswerPayload) property checks -----
+
+
+def answer_nonempty() -> Check:
+    def p(ans):
+        t = (ans.text or "").strip()
+        return len(t) > 0, f"text length={len(t)}"
+    return Check("answer_nonempty", p)
+
+
+def answer_leads_with_conclusion() -> Check:
+    """Answer-first: the first sentence should read as a conclusion, not
+    a hedge or a restatement of the question. Heuristic property floor --
+    the LLM-judge tier assesses this more deeply.
+    """
+    def p(ans):
+        t = (ans.text or "").strip()
+        if not t:
+            return False, "empty"
+        first = re.split(r"(?<=[.!?])\s", t, maxsplit=1)[0]
+        # a conclusion tends to be a short declarative opener, not a
+        # question and not prefixed with a hedge
+        hedges = ("it depends", "i'm not sure", "there are many", "weather is")
+        low = first.lower()
+        is_question = first.strip().endswith("?")
+        hedged = any(low.startswith(h) for h in hedges)
+        ok = not is_question and not hedged and len(first) <= 200
+        return ok, f"first sentence={first!r}"
+    return Check("leads_with_conclusion", p)
+
+
+def answer_mentions_any(*substrings: str) -> Check:
+    def p(ans):
+        t = (ans.text or "").lower()
+        hit = [s for s in substrings if s.lower() in t]
+        return bool(hit), f"matched={hit} of {list(substrings)}"
+    return Check(f"mentions_any{list(substrings)}", p)
+
+
+def answer_highlight_valid_or_none() -> Check:
+    """Highlight, if present, must point at a real forecast + reading --
+    the 'degrade to None, never crash' contract from synthesize.
+    """
+    def p(ans):
+        card = ans.card
+        hl = card.highlight
+        if hl is None:
+            return True, "highlight=None (valid)"
+        fi = hl.forecast_index
+        if not (0 <= fi < len(card.forecasts)):
+            return False, f"forecast_index={fi} out of range({len(card.forecasts)})"
+        return True, f"highlight -> forecast[{fi}]"
+    return Check("highlight_valid_or_none", p)
+
+
+def answer_card_forecast_count(n: int) -> Check:
+    def p(ans):
+        c = len(ans.card.forecasts)
+        return c == n, f"card.forecasts={c} expected={n}"
+    return Check(f"card_forecast_count=={n}", p)
