@@ -29,6 +29,35 @@ def spec_location_count(n: int) -> Check:
     return Check(f"location_count=={n}", p)
 
 
+def spec_locations_exact(expected_names: list[str], *, case_insensitive: bool = True) -> Check:
+    """Exact/set-match location check (sketch: "location extraction
+    accuracy"), catching a wrong city, an extra city, or a missing one
+    -- spec_location_count's blind spot (right count, wrong city still
+    passes). Unordered set equality: order rarely carries meaning for a
+    single location or an unordered comparison. Case-insensitive by
+    default so "Paris" vs "paris" isn't a spurious fail; additive to
+    spec_location_count, not a replacement (that one stays useful for
+    cases with no name to pin, e.g. the default-location case).
+    """
+    def _key(name: str) -> str:
+        name = name.strip()
+        return name.lower() if case_insensitive else name
+
+    expected_keys = {_key(n) for n in expected_names}
+
+    def p(spec):
+        extracted = list(spec.location_names)
+        extracted_keys = {_key(n) for n in extracted}
+        wrong_or_extra = extracted_keys - expected_keys
+        missing = expected_keys - extracted_keys
+        ok = not wrong_or_extra and not missing
+        return ok, (
+            f"extracted={extracted} expected={expected_names} "
+            f"wrong/extra={sorted(wrong_or_extra)} missing={sorted(missing)}"
+        )
+    return Check(f"locations_exact{expected_names}", p)
+
+
 def spec_names_default_location() -> Check:
     def p(spec):
         return spec.use_default_location, (
