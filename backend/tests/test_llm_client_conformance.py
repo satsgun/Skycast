@@ -224,7 +224,10 @@ def _gemini_response(data: dict) -> genai_types.GenerateContentResponse:
     part = genai_types.Part(text=json.dumps(data))
     content = genai_types.Content(parts=[part], role="model")
     candidate = genai_types.Candidate(content=content, finish_reason="STOP")
-    return genai_types.GenerateContentResponse(candidates=[candidate])
+    usage = genai_types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=10, candidates_token_count=5, total_token_count=15
+    )
+    return genai_types.GenerateContentResponse(candidates=[candidate], usage_metadata=usage)
 
 
 class _GeminiHarness:
