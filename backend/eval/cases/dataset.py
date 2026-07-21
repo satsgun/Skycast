@@ -158,6 +158,17 @@ def _exec_error_kind(kind: str) -> Check:
     return Check(f"error_kind[{kind}]", p)
 
 
+def _grounded(*factories):
+    """Builds a checks_synthesize_grounded factory (Task E4.4) from
+    single-forecast grounding-check factories (answer_grounded_precip
+    etc.), applied to the first forecast execute() produces -- the only
+    one, for the single-location cases that use this.
+    """
+    def build(forecasts):
+        return tuple(factory(forecasts[0]) for factory in factories)
+    return build
+
+
 DATASET: list[EvalCase] = [
     # 1. Umbrella / decision -- single known location, hourly, precip.
     EvalCase(
@@ -186,6 +197,7 @@ DATASET: list[EvalCase] = [
             C.answer_leads_with_conclusion(),
             C.answer_highlight_valid_or_none(),
         ),
+        checks_synthesize_grounded=_grounded(C.answer_grounded_precip),
         judge_rubric=(
             "Does the answer lead with a clear yes/no-style decision about "
             "the umbrella, and is it consistent with the forecast's precipitation?"
@@ -213,6 +225,9 @@ DATASET: list[EvalCase] = [
             C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_highlight_valid_or_none()),
+        checks_synthesize_grounded=_grounded(
+            C.answer_grounded_temperature, C.answer_grounded_condition
+        ),
         expect_terminal="answer",
     ),
     # 3. Comparison -- two known locations. (InMemory knows hyderabad;
@@ -352,6 +367,9 @@ DATASET: list[EvalCase] = [
             C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_highlight_valid_or_none()),
+        checks_synthesize_grounded=_grounded(
+            C.answer_grounded_temperature, C.answer_grounded_condition
+        ),
         expect_terminal="answer",
     ),
     # 9. Time-window stress -- "this evening" must resolve to the
@@ -434,6 +452,9 @@ DATASET: list[EvalCase] = [
             C.spec_variables_exact({"TEMPERATURE", "CONDITION"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_leads_with_conclusion()),
+        checks_synthesize_grounded=_grounded(
+            C.answer_grounded_temperature, C.answer_grounded_condition
+        ),
         judge_rubric="Does the answer lead with a clear jacket yes/no consistent with the temperature?",
         expect_terminal="answer",
     ),
@@ -561,7 +582,10 @@ DATASET: list[EvalCase] = [
             C.spec_variables_exact({"TEMPERATURE"}),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_card_forecast_count(2)),
-        judge_rubric="Does the answer compare BOTH cities and state which is warmer?",
+        judge_rubric=(
+            "Does the answer compare BOTH cities, state which is warmer, and "
+            "is that claim consistent with the two forecasts' temperatures?"
+        ),
         expect_terminal="answer",
     ),
     EvalCase(
