@@ -7,7 +7,7 @@ exact tool, and the returned tool_use block's `input` is validated back
 into `schema`.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import anthropic
 from pydantic import BaseModel, ValidationError
@@ -27,6 +27,13 @@ class AnthropicLLMClient(LLMClient):
     `client` is injectable for tests (mocked transport); when omitted, a
     real `anthropic.AsyncAnthropic()` is constructed (reads
     ANTHROPIC_API_KEY from env, the SDK's own convention).
+
+    `cache_ttl` (Task 23.2) is, like `model`, an explicit constructor
+    value the caller sources from config/env -- this class never reads
+    os.environ itself. It marks the system prompt and tool-schema blocks
+    (identical on every call to a given stage) as cacheable via
+    Anthropic's prompt caching; the per-call user message is never
+    cached, since it varies every call.
     """
 
     def __init__(
@@ -35,10 +42,12 @@ class AnthropicLLMClient(LLMClient):
         model: str,
         client: anthropic.AsyncAnthropic | None = None,
         max_tokens: int = _DEFAULT_MAX_TOKENS,
+        cache_ttl: Literal["5m", "1h"] = "5m",
     ) -> None:
         self._model = model
         self._client = client if client is not None else anthropic.AsyncAnthropic()
         self._max_tokens = max_tokens
+        self._cache_ttl = cache_ttl
         self.last_usage: Usage | None = None
         self.cumulative_usage: Usage | None = None
 
@@ -86,7 +95,13 @@ class AnthropicLLMClient(LLMClient):
             return await self._client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=system,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system,
+                        "cache_control": {"type": "ephemeral", "ttl": self._cache_ttl},
+                    }
+                ],
                 messages=messages,
                 tools=[tool],
                 tool_choice={"type": "tool", "name": tool_name},
@@ -115,18 +130,20 @@ class AnthropicLLMClient(LLMClient):
             input_tokens=message.usage.input_tokens,
             output_tokens=message.usage.output_tokens,
             model=self._model,
+            cache_write_tokens=message.usage.cache_creation_input_tokens or 0,
+            cache_read_tokens=message.usage.cache_read_input_tokens or 0,
         )
         self.cumulative_usage = (
             usage if self.cumulative_usage is None else self.cumulative_usage + usage
         )
         return usage
 
-    @staticmethod
-    def _build_tool(*, schema: type[BaseModel], tool_name: str) -> dict[str, Any]:
+    def _build_tool(self, *, schema: type[BaseModel], tool_name: str) -> dict[str, Any]:
         return {
             "name": tool_name,
             "description": schema.__doc__ or tool_name,
             "input_schema": schema.model_json_schema(),
+            "cache_control": {"type": "ephemeral", "ttl": self._cache_ttl},
         }
 
     @staticmethod

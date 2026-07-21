@@ -17,11 +17,20 @@ class _Canned(BaseModel):
     value: str
 
 
-def _usage() -> Usage:
-    return Usage(input_tokens=10, output_tokens=5)
+def _usage(
+    *,
+    cache_creation_input_tokens: int | None = None,
+    cache_read_input_tokens: int | None = None,
+) -> Usage:
+    return Usage(
+        input_tokens=10,
+        output_tokens=5,
+        cache_creation_input_tokens=cache_creation_input_tokens,
+        cache_read_input_tokens=cache_read_input_tokens,
+    )
 
 
-def _tool_use_message(input: dict, name: str = _TOOL_NAME) -> Message:
+def _tool_use_message(input: dict, name: str = _TOOL_NAME, usage: Usage | None = None) -> Message:
     return Message(
         id="msg_1",
         content=[ToolUseBlock(id="tu_1", input=input, name=name, type="tool_use")],
@@ -30,11 +39,11 @@ def _tool_use_message(input: dict, name: str = _TOOL_NAME) -> Message:
         stop_reason="tool_use",
         stop_sequence=None,
         type="message",
-        usage=_usage(),
+        usage=usage if usage is not None else _usage(),
     )
 
 
-def _text_only_message() -> Message:
+def _text_only_message(usage: Usage | None = None) -> Message:
     return Message(
         id="msg_1",
         content=[TextBlock(text="sorry, I can't do that", type="text")],
@@ -43,7 +52,7 @@ def _text_only_message() -> Message:
         stop_reason="end_turn",
         stop_sequence=None,
         type="message",
-        usage=_usage(),
+        usage=usage if usage is not None else _usage(),
     )
 
 
@@ -83,10 +92,13 @@ def test_happy_path_returns_validated_schema_instance() -> None:
             "name": _TOOL_NAME,
             "description": _Canned.__doc__ or _TOOL_NAME,
             "input_schema": _Canned.model_json_schema(),
+            "cache_control": {"type": "ephemeral", "ttl": "5m"},
         }
     ]
     assert call["tool_choice"] == {"type": "tool", "name": _TOOL_NAME}
-    assert call["system"] == "sys prompt"
+    assert call["system"] == [
+        {"type": "text", "text": "sys prompt", "cache_control": {"type": "ephemeral", "ttl": "5m"}}
+    ]
 
 
 def test_repair_retry_succeeds_on_second_call() -> None:
@@ -339,3 +351,65 @@ def test_exception_during_repair_call_records_first_calls_usage_but_not_last_usa
     assert client.cumulative_usage == SkycastUsage(
         input_tokens=10, output_tokens=5, model="claude-haiku-4-5-20251001"
     )
+
+
+# --- Task 23.2: prompt caching ---
+
+
+def test_default_cache_ttl_is_5m_on_both_tool_and_system_blocks() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    call = fake.messages.calls[0]
+    assert call["tools"][0]["cache_control"] == {"type": "ephemeral", "ttl": "5m"}
+    assert call["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "5m"}
+
+
+def test_cache_ttl_is_configurable_via_constructor() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake, cache_ttl="1h")
+
+    _run_get_structured(client)
+
+    call = fake.messages.calls[0]
+    assert call["tools"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    assert call["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+
+def test_user_message_is_not_wrapped_or_cached() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    call = fake.messages.calls[0]
+    assert call["messages"] == [{"role": "user", "content": "what's the weather"}]
+
+
+def test_cache_tokens_from_response_are_captured_into_usage() -> None:
+    fake = _FakeAnthropicClient(
+        [
+            _tool_use_message(
+                {"value": "sunny"},
+                usage=_usage(cache_creation_input_tokens=100, cache_read_input_tokens=900),
+            )
+        ]
+    )
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_write_tokens == 100
+    assert client.last_usage.cache_read_tokens == 900
+
+
+def test_cache_tokens_default_to_zero_when_response_omits_them() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_write_tokens == 0
+    assert client.last_usage.cache_read_tokens == 0
