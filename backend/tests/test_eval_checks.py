@@ -14,6 +14,10 @@ def _spec(location_names: list[str]) -> SimpleNamespace:
     return SimpleNamespace(location_names=location_names)
 
 
+def _spec_vars(variables: set[str]) -> SimpleNamespace:
+    return SimpleNamespace(variables=variables)
+
+
 def test_exact_match_passes() -> None:
     check = C.spec_locations_exact(["Paris"])
     passed, detail = check.predicate(_spec(["Paris"]))
@@ -74,3 +78,58 @@ def test_detail_reports_symmetric_difference() -> None:
     assert not passed
     assert "london" in detail.lower()
     assert "tokyo" in detail.lower()
+
+
+# --- spec_variables_prf (Task E1.2) ---
+
+_PRECIP_AND_CONDITION = {"PRECIP_PROBABILITY", "CONDITION"}
+
+
+def test_exact_set_match_passes() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY", "CONDITION"}))
+    assert passed, detail
+
+
+def test_missing_variable_fails_recall_under_default_threshold() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY"}))
+    assert not passed, detail
+
+
+def test_extra_variable_fails_precision_under_default_threshold() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(
+        _spec_vars({"PRECIP_PROBABILITY", "CONDITION", "WIND_SPEED"})
+    )
+    assert not passed, detail
+
+
+def test_relaxed_min_precision_tolerates_extra_variable() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION, min_precision=0.6)
+    passed, detail = check.predicate(
+        _spec_vars({"PRECIP_PROBABILITY", "CONDITION", "WIND_SPEED"})
+    )
+    assert passed, detail
+
+
+def test_relaxed_min_recall_tolerates_missing_variable() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION, min_recall=0.4)
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY"}))
+    assert passed, detail
+
+
+def test_completely_wrong_variables_fails_both_precision_and_recall() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(_spec_vars({"TEMPERATURE", "WIND_SPEED"}))
+    assert not passed, detail
+
+
+def test_detail_reports_precision_recall_and_offending_sets() -> None:
+    check = C.spec_variables_prf(_PRECIP_AND_CONDITION)
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY", "WIND_SPEED"}))
+    assert not passed
+    assert "precision" in detail.lower()
+    assert "recall" in detail.lower()
+    assert "wind_speed" in detail.lower()
+    assert "condition" in detail.lower()

@@ -74,6 +74,36 @@ def spec_has_variable(var: str) -> Check:
     return Check(f"has_variable[{var}]", p)
 
 
+def spec_variables_prf(
+    expected: set[str], *, min_precision: float = 1.0, min_recall: float = 1.0
+) -> Check:
+    """Set precision/recall check (sketch: "variables as set precision/
+    recall"), closing spec_has_variable's blind spot: one expected
+    variable present passes even with extra unwanted ones (over-
+    requesting) or other expected variables missing (under-requesting).
+    precision = |extracted & expected| / |extracted| penalizes over-
+    requesting; recall = |extracted & expected| / |expected| penalizes
+    under-requesting. Default 1.0/1.0 is exact set match; relax either
+    threshold to let a case tolerate e.g. a harmless extra variable.
+    DataNeedsSpec.variables is never empty (Field(min_length=1)), so the
+    zero-denominator case below is defensive, not a real path.
+    """
+    def p(spec):
+        extracted = {getattr(v, "value", str(v)) for v in spec.variables}
+        intersection = extracted & expected
+        precision = (len(intersection) / len(extracted)) if extracted else 0.0
+        recall = (len(intersection) / len(expected)) if expected else 0.0
+        ok = precision >= min_precision and recall >= min_recall
+        extra = sorted(extracted - expected)
+        missing = sorted(expected - extracted)
+        return ok, (
+            f"precision={precision:.2f} (want >={min_precision:.2f}) "
+            f"recall={recall:.2f} (want >={min_recall:.2f}) "
+            f"extra={extra} missing={missing}"
+        )
+    return Check(f"variables_prf{sorted(expected)}", p)
+
+
 def spec_has_granularity(g: str) -> Check:
     def p(spec):
         vals = {getattr(x, "value", str(x)) for x in spec.granularities}
