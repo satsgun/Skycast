@@ -13,6 +13,13 @@ import re
 from eval.harness.types import Check
 
 # ----- decompose (DataNeedsSpec) property checks -----
+#
+# Guard against circularity (Task E1.5): every `expected`/`expected_names`
+# argument these checks take must be independently authored ground truth
+# for what the model should extract from the query text, never read off
+# the same case's `canned_spec` (which exists only to drive the
+# deterministic plan/execute tiers) -- see eval/cases/dataset.py's module
+# docstring for the full rationale.
 
 
 def spec_intent_is(expected: str) -> Check:

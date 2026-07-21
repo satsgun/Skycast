@@ -60,10 +60,15 @@ vendor's `*_API_KEY`, optional `LLM_MODEL`.
 - **Cost / latency (Gap 3):** per-stage wall-clock + tokens (where the client
   exposes `last_usage`) captured on runs that happen anyway. Empirically
   validates ADR-0001's two-call cost (plan is deterministic → zero LLM cost).
-- **Dataset (Gap 4):** 10 cases across the taxonomy — simple conditions,
+- **Dataset (Gap 4):** 23 cases across the taxonomy — simple conditions,
   decision/umbrella, multi-day outlook, comparison fan-out, no-location→default,
   ambiguous→clarify, not-found, skip-geocode, time-window stress, and
-  codegen-fallback routing.
+  codegen-fallback routing. Decompose-tier expectations
+  (`spec_locations_exact`/`spec_variables_exact`/`spec_variables_prf`) are
+  authored independently from each case's `canned_spec` — never derived
+  from it — so a check can't trivially pass by comparing the model's
+  output to a spec built from the same source (see `dataset.py`'s module
+  docstring).
 
 ## Notes on live behavior
 

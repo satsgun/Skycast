@@ -10,6 +10,20 @@ checks for the stochastic tiers (decompose/synthesize) that a real LLM
 run scores. The InMemoryProvider's built-in dataset knows "hyderabad"
 (single match) and "springfield" (multi-match); unknown names geocode
 empty (not-found).
+
+Guard against circularity (Task E1.5): a case's `checks_decompose`
+arguments (`spec_locations_exact([...])`, `spec_variables_exact({...})`/
+`spec_variables_prf({...}, ...)`) are independently authored ground
+truth for what the real model *should* extract from the query text --
+never derived from that same case's `canned_spec.location_names`/
+`.variables`, even as a convenience (e.g.
+`spec_locations_exact(canned_spec.location_names)` would let the model
+pass by construction, since `canned_spec` exists only to drive the
+deterministic plan/execute tiers, not to define what decompose is being
+scored against). Where the two happen to agree -- they usually should,
+for a well-behaved query -- that's a property of a good case, not the
+source of truth; reason each set of expectations from the query text on
+its own.
 """
 
 from __future__ import annotations
