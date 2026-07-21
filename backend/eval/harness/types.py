@@ -30,6 +30,18 @@ class Stage(str, Enum):
     END_TO_END = "end_to_end"
 
 
+# Stages the eval framework scores and baselines. EXECUTE is deliberately
+# excluded (wiki sketch: "Execution -- Integration Testing, Not Eval...
+# skip Stage 3 from evaluation framework"): it has no LLM output to
+# evaluate, only plan() mechanics InMemoryProvider already makes
+# deterministic. It still runs, still shows up in the per-run variance
+# table, and still fails CI on a genuine mechanical break (see
+# run_eval.py's deterministic-tier exit-code gate, which is tier-based,
+# not scored-stage-based) -- it just doesn't get a score or participate
+# in baseline/regression diffing.
+SCORED_STAGES = frozenset({Stage.DECOMPOSE, Stage.PLAN, Stage.SYNTHESIZE, Stage.END_TO_END})
+
+
 @dataclass(frozen=True)
 class Check:
     """One named property assertion over a stage's output.

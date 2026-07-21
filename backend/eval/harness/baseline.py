@@ -19,15 +19,20 @@ import statistics
 from dataclasses import dataclass
 
 from eval.harness.aggregate import AggregateReport
+from eval.harness.types import SCORED_STAGES
 
 
 def build_baseline(report: AggregateReport) -> dict:
-    """Serialize per-stage scores + observed variance to a baseline dict."""
+    """Serialize per-stage scores + observed variance to a baseline dict.
+
+    EXECUTE is excluded (see eval.harness.types.SCORED_STAGES) -- it's
+    integration testing, not eval, per the wiki sketch.
+    """
     per_stage: dict[str, dict] = {}
     # group case-level aggregates by stage
     by_stage: dict[str, list] = {}
     for s in report.stages:
-        if not s.ran:
+        if not s.ran or s.stage not in SCORED_STAGES:
             continue
         by_stage.setdefault(s.stage.value, []).append(s)
 

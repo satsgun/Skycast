@@ -89,6 +89,26 @@ def _plan_has_geocode_for(name: str) -> Check:
     return Check(f"plan_geocodes[{name}]", p)
 
 
+def _plan_forecast_depends_on_geocode(name: str) -> Check:
+    """Dependency-ordering check (sketch: 'geocode-before-forecast
+    rules') -- a geocode call existing somewhere in the plan isn't
+    enough; the chain's FETCH_FORECAST call must actually depend_on it.
+    """
+    def p(tp):
+        geocodes = [c for c in tp.calls if c.tool.value == "GEOCODE" and c.location_name == name]
+        if not geocodes:
+            return False, f"no GEOCODE call found for {name}"
+        geocode_id = geocodes[0].call_id
+        depending = [
+            c for c in tp.calls
+            if c.tool.value == "FETCH_FORECAST" and geocode_id in c.depends_on
+        ]
+        ok = len(depending) == 1
+        return ok, (f"forecast calls depending on geocode[{name}]={len(depending)} "
+                    f"expected 1")
+    return Check(f"plan_forecast_depends_on_geocode[{name}]", p)
+
+
 def _plan_forecast_count(n: int) -> Check:
     def p(tp):
         c = sum(1 for x in tp.calls if x.tool.value == "FETCH_FORECAST")
@@ -135,7 +155,11 @@ DATASET: list[EvalCase] = [
             [Granularity.HOURLY],
             [WeatherVariable.PRECIP_PROBABILITY, WeatherVariable.CONDITION],
         ),
-        checks_plan=(_plan_has_geocode_for("Hyderabad"), _plan_forecast_count(1)),
+        checks_plan=(
+            _plan_has_geocode_for("Hyderabad"),
+            _plan_forecast_count(1),
+            _plan_forecast_depends_on_geocode("Hyderabad"),
+        ),
         expect_execute_variant="Success",
         checks_execute=(_exec_forecast_count(1),),
         checks_decompose=(
@@ -194,6 +218,11 @@ DATASET: list[EvalCase] = [
             _plan_forecast_count(2),
             _plan_has_geocode_for("Hyderabad"),
             _plan_has_geocode_for("Springfield"),
+            # Dependency ordering (sketch): each independent chain's
+            # forecast call must depend on its OWN geocode call, not
+            # get cross-wired with the other's in this two-city fan-out.
+            _plan_forecast_depends_on_geocode("Hyderabad"),
+            _plan_forecast_depends_on_geocode("Springfield"),
         ),
         # Springfield is multi-match in the InMemory set -> execute clarifies.
         expect_execute_variant="NeedsClarification",

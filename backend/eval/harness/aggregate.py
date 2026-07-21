@@ -13,7 +13,7 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass, field
 
-from eval.harness.types import Stage, Tier
+from eval.harness.types import SCORED_STAGES, Stage, Tier
 
 
 @dataclass
@@ -92,12 +92,12 @@ class AggregateReport:
 
     def stage_scores(self) -> dict[str, float]:
         """Averaged pass-rate per stage name across all its cases -- the
-        baseline unit (Gap 2). Deterministic + stochastic both included;
-        keyed 'stage' -> mean pass rate.
+        baseline unit (Gap 2). Deterministic + stochastic both included,
+        except EXECUTE (see SCORED_STAGES); keyed 'stage' -> mean pass rate.
         """
         by_stage: dict[str, list[float]] = {}
         for s in self.stages:
-            if not s.ran:
+            if not s.ran or s.stage not in SCORED_STAGES:
                 continue
             by_stage.setdefault(s.stage.value, []).append(s.mean_pass_rate)
         return {k: statistics.mean(v) for k, v in by_stage.items() if v}
