@@ -100,6 +100,35 @@ def test_hourly_spec_now_succeeds_at_plan_carrying_time_for_later_resolution() -
     assert forecast.time == time_spec
 
 
+def test_daily_spec_beyond_provider_horizon_raises_no_capable_provider_error() -> None:
+    """Task 21.5: the forecast-horizon capability check, fed from the
+    descriptor's implied day count since plan() has no concrete window
+    (and never will -- that's execute()'s job, unchanged).
+    """
+    spec = _spec(
+        granularities={Granularity.DAILY},
+        time=RelativeTimeSpec(kind=RelativeTimeKind.NEXT_N_DAYS, day_count=20),
+    )
+    providers = {"stub": _StubProvider(_full_capabilities(max_forecast_days=16))}
+
+    with pytest.raises(NoCapableProviderError) as exc_info:
+        plan(spec, providers)
+
+    assert exc_info.value.reason == "forecast_horizon_too_short"
+
+
+def test_daily_spec_within_provider_horizon_succeeds() -> None:
+    spec = _spec(
+        granularities={Granularity.DAILY},
+        time=RelativeTimeSpec(kind=RelativeTimeKind.NEXT_N_DAYS, day_count=16),
+    )
+    providers = {"open-meteo": InMemoryProvider()}
+
+    result = plan(spec, providers)
+
+    assert len(result.calls) == 2
+
+
 def test_default_location_with_known_coords_skips_geocode() -> None:
     spec = _spec(location_names=[])
     providers = {"open-meteo": InMemoryProvider()}

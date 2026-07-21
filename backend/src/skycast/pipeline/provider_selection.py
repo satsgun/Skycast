@@ -33,6 +33,7 @@ def select_provider(
     providers: list[WeatherProvider],
     *,
     needs_geocoding: bool,
+    horizon_days: int | None,
 ) -> WeatherProvider:
     """Raises NoCapableProviderError if no provider satisfies the request.
 
@@ -40,6 +41,13 @@ def select_provider(
     decides whether the caller (plan, Task 15.3) emits a GEOCODE call --
     never evaluated independently here. `granularities` is accepted for
     interface stability (see module docstring) but unused today.
+
+    `horizon_days` (Task 21.5, ADR-0006) is the pre-geocode, descriptor-
+    implied alternative to `window` for the forecast-horizon check: plan()
+    runs before geocoding and never has a concrete window to check, only
+    a RelativeTimeSpec's implied day count (see
+    resolve_window.implied_horizon_days). Checked independently of
+    `window` -- a caller supplies whichever it actually has.
     """
     capable: list[WeatherProvider] = []
     reasons: list[str] = []
@@ -49,6 +57,7 @@ def select_provider(
             provider.capabilities(),
             required_variables=required_variables,
             window=window,
+            horizon_days=horizon_days,
             needs_geocoding=needs_geocoding,
         )
         if failure is None:
@@ -70,6 +79,7 @@ def _first_unmet_requirement(
     *,
     required_variables: set[WeatherVariable],
     window: TimeWindow | None,
+    horizon_days: int | None,
     needs_geocoding: bool,
 ) -> str | None:
     if not required_variables <= capabilities.available_variables:
@@ -79,6 +89,8 @@ def _first_unmet_requirement(
     if window is not None and (
         window.end - window.start
     ) > timedelta(days=capabilities.max_forecast_days):
+        return "forecast_horizon_too_short"
+    if horizon_days is not None and horizon_days > capabilities.max_forecast_days:
         return "forecast_horizon_too_short"
     return None
 

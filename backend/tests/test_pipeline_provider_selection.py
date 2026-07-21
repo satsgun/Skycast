@@ -51,6 +51,7 @@ def test_single_capable_provider_is_selected() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.CURRENT},
         window=None,
+        horizon_days=None,
         providers=[provider],
         needs_geocoding=False,
     )
@@ -66,6 +67,7 @@ def test_missing_variable_raises_no_capable_provider_error() -> None:
             required_variables={WeatherVariable.PRECIP_PROBABILITY},
             granularities={Granularity.CURRENT},
             window=None,
+            horizon_days=None,
             providers=[provider],
             needs_geocoding=False,
         )
@@ -81,6 +83,7 @@ def test_needs_geocoding_true_with_unsupported_provider_raises() -> None:
             required_variables={WeatherVariable.TEMPERATURE},
             granularities={Granularity.CURRENT},
             window=None,
+            horizon_days=None,
             providers=[provider],
             needs_geocoding=True,
         )
@@ -95,6 +98,7 @@ def test_needs_geocoding_false_ignores_unsupported_geocoding() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.CURRENT},
         window=None,
+        horizon_days=None,
         providers=[provider],
         needs_geocoding=False,
     )
@@ -112,11 +116,58 @@ def test_window_beyond_max_forecast_days_raises() -> None:
             required_variables={WeatherVariable.TEMPERATURE},
             granularities={Granularity.DAILY},
             window=window,
+            horizon_days=None,
             providers=[provider],
             needs_geocoding=False,
         )
 
     assert exc_info.value.reason == "forecast_horizon_too_short"
+
+
+def test_horizon_days_beyond_max_forecast_days_raises() -> None:
+    provider = _StubProvider(_full_capabilities(max_forecast_days=16))
+
+    with pytest.raises(NoCapableProviderError) as exc_info:
+        select_provider(
+            required_variables={WeatherVariable.TEMPERATURE},
+            granularities={Granularity.DAILY},
+            window=None,
+            horizon_days=20,
+            providers=[provider],
+            needs_geocoding=False,
+        )
+
+    assert exc_info.value.reason == "forecast_horizon_too_short"
+
+
+def test_horizon_days_within_max_forecast_days_is_accepted() -> None:
+    provider = _StubProvider(_full_capabilities(max_forecast_days=16))
+
+    selected = select_provider(
+        required_variables={WeatherVariable.TEMPERATURE},
+        granularities={Granularity.DAILY},
+        window=None,
+        horizon_days=16,
+        providers=[provider],
+        needs_geocoding=False,
+    )
+
+    assert selected is provider
+
+
+def test_none_horizon_days_never_triggers_horizon_check() -> None:
+    provider = _StubProvider(_full_capabilities(max_forecast_days=0))
+
+    selected = select_provider(
+        required_variables={WeatherVariable.TEMPERATURE},
+        granularities={Granularity.CURRENT},
+        window=None,
+        horizon_days=None,
+        providers=[provider],
+        needs_geocoding=False,
+    )
+
+    assert selected is provider
 
 
 def test_none_window_never_triggers_horizon_check() -> None:
@@ -126,6 +177,7 @@ def test_none_window_never_triggers_horizon_check() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.CURRENT},
         window=None,
+        horizon_days=None,
         providers=[provider],
         needs_geocoding=False,
     )
@@ -140,6 +192,7 @@ def test_granularity_is_not_filtered() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.HOURLY, Granularity.DAILY},
         window=None,
+        horizon_days=None,
         providers=[provider],
         needs_geocoding=False,
     )
@@ -153,6 +206,7 @@ def test_empty_providers_list_raises_no_providers_registered() -> None:
             required_variables={WeatherVariable.TEMPERATURE},
             granularities={Granularity.CURRENT},
             window=None,
+            horizon_days=None,
             providers=[],
             needs_geocoding=False,
         )
@@ -168,6 +222,7 @@ def test_two_capable_providers_picks_the_ranked_top() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.CURRENT},
         window=None,
+        horizon_days=None,
         providers=[first, second],
         needs_geocoding=False,
     )
@@ -189,6 +244,7 @@ def test_determinism_same_inputs_select_same_provider() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.CURRENT},
         window=None,
+        horizon_days=None,
         providers=[provider],
         needs_geocoding=False,
     )
@@ -196,6 +252,7 @@ def test_determinism_same_inputs_select_same_provider() -> None:
         required_variables={WeatherVariable.TEMPERATURE},
         granularities={Granularity.CURRENT},
         window=None,
+        horizon_days=None,
         providers=[provider],
         needs_geocoding=False,
     )

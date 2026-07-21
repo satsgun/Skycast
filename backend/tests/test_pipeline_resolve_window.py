@@ -3,7 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 import pytest
 
 from skycast.pipeline.relative_time import RelativeTimeKind, RelativeTimeSpec
-from skycast.pipeline.resolve_window import resolve_window
+from skycast.pipeline.resolve_window import implied_horizon_days, resolve_window
 
 _KOLKATA = "Asia/Kolkata"
 
@@ -184,3 +184,27 @@ def _offset(tz_name: str):
     from zoneinfo import ZoneInfo
 
     return ZoneInfo(tz_name)
+
+
+# --- implied_horizon_days (Task 21.5) ---
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        RelativeTimeSpec(kind=RelativeTimeKind.NOW),
+        RelativeTimeSpec(kind=RelativeTimeKind.TODAY),
+        RelativeTimeSpec(kind=RelativeTimeKind.THIS_EVENING),
+        RelativeTimeSpec(kind=RelativeTimeKind.TOMORROW),
+        RelativeTimeSpec(kind=RelativeTimeKind.ABSOLUTE, clock_time=time(14, 0)),
+        RelativeTimeSpec(kind=RelativeTimeKind.ABSOLUTE, clock_time=time(14, 0), day_offset=3),
+    ],
+)
+def test_implied_horizon_days_is_one_for_every_kind_but_next_n_days(spec: RelativeTimeSpec) -> None:
+    assert implied_horizon_days(spec) == 1
+
+
+@pytest.mark.parametrize("day_count", [1, 3, 16, 20])
+def test_implied_horizon_days_matches_day_count_for_next_n_days(day_count: int) -> None:
+    spec = RelativeTimeSpec(kind=RelativeTimeKind.NEXT_N_DAYS, day_count=day_count)
+    assert implied_horizon_days(spec) == day_count

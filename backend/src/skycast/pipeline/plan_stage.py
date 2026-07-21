@@ -12,6 +12,7 @@ from skycast.pipeline.data_needs import DataNeedsSpec
 from skycast.pipeline.errors import NoLocationError
 from skycast.pipeline.plan import PlannedCall, PlannedTool, ToolPlan
 from skycast.pipeline.provider_selection import select_provider
+from skycast.pipeline.resolve_window import implied_horizon_days
 from skycast.providers.base import WeatherProvider
 
 
@@ -56,12 +57,12 @@ def plan(
         selected = select_provider(
             required_variables=spec.variables,
             granularities=spec.granularities,
-            # TODO(Task 21.5): spec.time is a descriptor, not a concrete
-            # window (ADR-0006) -- there's no timezone to resolve one with
-            # before geocoding. The horizon check inside select_provider
-            # is a no-op until it reasons from the descriptor directly
-            # instead of a window.
+            # spec.time is a descriptor, not a concrete window (ADR-0006)
+            # -- there's no timezone to resolve one with before geocoding
+            # (that's execute()'s job, Task 21.4). The horizon check
+            # reasons from the descriptor's implied day count instead.
             window=None,
+            horizon_days=implied_horizon_days(spec.time) if spec.time is not None else None,
             providers=list(providers.values()),
             needs_geocoding=is_name,
         )

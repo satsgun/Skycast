@@ -61,3 +61,19 @@ def resolve_window(time: RelativeTimeSpec, timezone: str | None, now: datetime) 
 
 def _at(day: date, clock: _time, tz: _tzinfo) -> datetime:
     return datetime.combine(day, clock, tzinfo=tz)
+
+
+def implied_horizon_days(time: RelativeTimeSpec) -> int:
+    """The number of distinct calendar days `time` could span, without
+    needing a timezone to know exactly which days those are -- the
+    coarse, pre-geocode input to the provider capability filter's
+    forecast-horizon check (Task 21.5), since plan() has no `now` or
+    timezone to call resolve_window() with. Matches resolve_window's own
+    per-kind reasoning: NEXT_N_DAYS(n) spans n calendar days; every other
+    kind spans exactly one, wherever that day lands once a timezone is
+    known.
+    """
+    if time.kind == RelativeTimeKind.NEXT_N_DAYS:
+        assert time.day_count is not None  # guaranteed by RelativeTimeSpec's own validator
+        return time.day_count
+    return 1
