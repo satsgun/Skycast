@@ -23,6 +23,7 @@ from openai import APIConnectionError as OpenAIAPIConnectionError
 from openai import AsyncOpenAI, OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 
 from skycast.llm.anthropic_client import AnthropicLLMClient
@@ -151,7 +152,8 @@ def _chat_completion(data: dict) -> ChatCompletion:
     message = ChatCompletionMessage(role="assistant", content=json.dumps(data))
     choice = Choice(finish_reason="stop", index=0, message=message)
     return ChatCompletion(
-        id="chatcmpl_1", choices=[choice], created=1, model="gpt-5", object="chat.completion"
+        id="chatcmpl_1", choices=[choice], created=1, model="gpt-5", object="chat.completion",
+        usage=CompletionUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
     )
 
 

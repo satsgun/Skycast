@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from skycast.llm.client import LLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
+from skycast.llm.usage import Usage
 
 _UNSUPPORTED_SCHEMA_KEYWORDS = {
     # strings
@@ -91,6 +92,8 @@ class OpenAILLMClient(LLMClient):
     ) -> None:
         self._model = model
         self._client = client if client is not None else openai.AsyncOpenAI(api_key=api_key)
+        self.last_usage: Usage | None = None
+        self.cumulative_usage: Usage | None = None
 
     async def get_structured(
         self, *, system: str, user: str, schema: type[BaseModel], tool_name: str
@@ -102,8 +105,10 @@ class OpenAILLMClient(LLMClient):
         ]
 
         completion = await self._parse(messages=messages, response_format=response_format)
+        invocation_usage = self._record_usage(completion)
         result, error_feedback = self._validate_response(completion, schema=schema)
         if result is not None:
+            self.last_usage = invocation_usage
             return result
 
         repair_messages: list[dict[str, Any]] = [
@@ -117,10 +122,13 @@ class OpenAILLMClient(LLMClient):
             },
         ]
         repaired = await self._parse(messages=repair_messages, response_format=response_format)
+        invocation_usage = invocation_usage + self._record_usage(repaired)
         result, error_feedback = self._validate_response(repaired, schema=schema)
         if result is not None:
+            self.last_usage = invocation_usage
             return result
 
+        self.last_usage = invocation_usage
         raise StructuredOutputError(
             f"model could not produce valid structured output for `{tool_name}` "
             "after one repair retry",
@@ -140,6 +148,25 @@ class OpenAILLMClient(LLMClient):
             # The seam's contract is that only LLMError/StructuredOutputError
             # cross it, so anything else gets normalized here too.
             raise LLMError(f"openai request failed: {exc}", reason=type(exc).__name__) from exc
+
+    def _record_usage(self, completion: Any) -> Usage:
+        """Builds this call's Usage from the real response (OpenAI's
+        prompt_tokens/completion_tokens naming maps to our input/output),
+        folds it into the running self.cumulative_usage, and returns it
+        so the caller can build the invocation-level total (summed
+        across a repair retry, if one happens). Only called after a
+        successful _parse() -- a call that raises never reaches here, so
+        a failed call can't corrupt cumulative_usage.
+        """
+        usage = Usage(
+            input_tokens=completion.usage.prompt_tokens,
+            output_tokens=completion.usage.completion_tokens,
+            model=self._model,
+        )
+        self.cumulative_usage = (
+            usage if self.cumulative_usage is None else self.cumulative_usage + usage
+        )
+        return usage
 
     @staticmethod
     def _validate_response(
