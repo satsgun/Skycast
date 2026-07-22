@@ -1,18 +1,21 @@
-"""Per-token USD pricing for eval cost reporting (Task 23.6).
+"""Per-token USD pricing for eval cost reporting (Task 24.1).
 
 Not part of the LLMClient seam -- Usage stays vendor-agnostic token
 counts (skycast.llm.usage.Usage); dollar pricing is a reporting-layer
 concern layered on top here, looked up by model name.
 
-Rates are approximate, illustrative $/token figures reflecting each
-vendor's published order-of-magnitude cache-discount structure (e.g.
-Anthropic cache reads ~10% of base input, cache writes ~125%; OpenAI
-cached input ~50% of base, no write premium; Gemini implicit-cache reads
-~25% of base, no write premium) -- not a live pricing feed, and not
-billing-accurate. The point is a believable, internally-consistent
-comparison between two eval runs of the *same* model (one with
-SKYCAST_DISABLE_CACHE set, one without), not absolute dollar accuracy.
-Update _RATES if real accuracy is ever needed.
+MODEL_PRICES is live-verified, never guessed from memory (rates go
+stale, and vendors deprecate models outright) -- each entry below
+carries a `# verified against <url> on <date>` comment. As of the last
+verification (2026-07-22), only 3 of the 6 models actually configured
+in this codebase (wiring.py's _DEFAULT_MODELS, run_eval.py's per-vendor
+fallbacks) have live official pricing: claude-haiku-4-5-20251001,
+claude-sonnet-4-5, and gemini-2.5-flash. gemini-2.0-flash was shut down
+2026-06-01 (Google's own docs); gpt-5-mini and gpt-4o are both absent
+from OpenAI's current pricing page entirely -- all three are simply
+absent from MODEL_PRICES below, not present with a guessed or stale
+rate. get_price() resolves that absence to None, never a crash or a
+silent 0-rate ModelPrice.
 
 compute_cost is the single pricing path for both cache-on and cache-off
 runs (Task 23.6's own requirement) -- it does no vendor branching at
@@ -28,48 +31,65 @@ from skycast.llm.usage import Usage
 
 
 @dataclass(frozen=True)
-class ModelRates:
-    input: float
-    output: float
-    cache_write: float
-    cache_read: float
+class ModelPrice:
+    input_price: float
+    output_price: float
+    cache_write_price: float
+    cache_read_price: float
 
 
-_RATES: dict[str, ModelRates] = {
-    # Anthropic -- wiring.py's default + run_eval.py's default.
-    "claude-haiku-4-5-20251001": ModelRates(
-        input=1.00e-6, output=5.00e-6, cache_write=1.25e-6, cache_read=0.10e-6
+MODEL_PRICES: dict[str, ModelPrice] = {
+    # verified against https://platform.claude.com/docs/en/about-claude/pricing
+    # on 2026-07-22. cache_write_price uses the 5-minute cache-write rate,
+    # matching AnthropicLLMClient's default cache_ttl="5m" (the 1h rate is
+    # $2/MTok for Haiku 4.5, $6/MTok for Sonnet 4.5 -- not tabled separately
+    # since this codebase doesn't run with cache_ttl="1h" by default).
+    "claude-haiku-4-5-20251001": ModelPrice(
+        input_price=1.00e-6, output_price=5.00e-6,
+        cache_write_price=1.25e-6, cache_read_price=0.10e-6,
     ),
-    "claude-sonnet-4-5": ModelRates(
-        input=3.00e-6, output=15.00e-6, cache_write=3.75e-6, cache_read=0.30e-6
+    "claude-sonnet-4-5": ModelPrice(
+        input_price=3.00e-6, output_price=15.00e-6,
+        cache_write_price=3.75e-6, cache_read_price=0.30e-6,
     ),
-    # OpenAI -- no write premium (Task 23.3's own finding).
-    "gpt-5-mini": ModelRates(input=0.25e-6, output=2.00e-6, cache_write=0.0, cache_read=0.125e-6),
-    "gpt-4o": ModelRates(input=2.50e-6, output=10.00e-6, cache_write=0.0, cache_read=1.25e-6),
-    # Gemini -- implicit caching, no write-side field at all (Task 23.4).
-    "gemini-2.5-flash": ModelRates(
-        input=0.30e-6, output=2.50e-6, cache_write=0.0, cache_read=0.075e-6
+    # verified against https://ai.google.dev/gemini-api/docs/pricing on
+    # 2026-07-22 (standard tier, text/image/video input). Gemini's implicit
+    # caching has no write-side charge at all -- no cache-write field even
+    # exists on the SDK response (see gemini_client.py's Task 23.4 note).
+    "gemini-2.5-flash": ModelPrice(
+        input_price=0.30e-6, output_price=2.50e-6,
+        cache_write_price=0.0, cache_read_price=0.03e-6,
     ),
-    "gemini-2.0-flash": ModelRates(
-        input=0.10e-6, output=0.40e-6, cache_write=0.0, cache_read=0.025e-6
-    ),
+    # gemini-2.0-flash (run_eval.py's default): confirmed shut down
+    # 2026-06-01 per Google's own docs -- deliberately absent, not priced.
+    # gpt-5-mini (wiring.py's default) / gpt-4o (run_eval.py's default):
+    # both absent from https://developers.openai.com/api/docs/pricing as of
+    # 2026-07-22 (superseded by the gpt-5.4/5.5/5.6 family) -- deliberately
+    # absent rather than priced against an unrelated successor model.
 }
 
 
+def get_price(model: str) -> ModelPrice | None:
+    """None for anything not in MODEL_PRICES -- an unpriced model, never
+    a crash or a silent 0-rate ModelPrice. See the module docstring for
+    which of this codebase's configured models currently resolve here.
+    """
+    return MODEL_PRICES.get(model)
+
+
 def compute_cost(usage: Usage) -> float | None:
-    """USD cost of one Usage record, or None when it can't be priced
-    (no model attributed, or a model string not in _RATES -- e.g. a
-    LLM_MODEL override to something newer than this table). Not an
+    """USD cost of one Usage record, or None when it can't be priced (no
+    model attributed, or a model get_price() doesn't know about). Not an
     error: an unpriced model is a normal, expected gap, not a bug.
     """
     if usage.model is None:
         return None
-    rates = _RATES.get(usage.model)
-    if rates is None:
+    price = get_price(usage.model)
+    if price is None:
         return None
     return (
-        usage.input_tokens * rates.input
-        + usage.output_tokens * rates.output
-        + usage.cache_write_tokens * rates.cache_write
-        + usage.cache_read_tokens * rates.cache_read
+        usage.input_tokens * price.input_price
+        + usage.output_tokens * price.output_price
+        + usage.cache_write_tokens * price.cache_write_price
+        + usage.cache_read_tokens * price.cache_read_price
     )
