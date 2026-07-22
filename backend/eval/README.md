@@ -34,6 +34,9 @@ python -m eval.run_eval --live --runs 5 --judge --e2e
 # build a baseline, then regression-check later runs
 python -m eval.run_eval --live --save-baseline eval/baseline.json
 python -m eval.run_eval --live --baseline eval/baseline.json
+
+# write a committable cost-summary artifact (mean $/query, cache hit-rate, ...)
+python -m eval.run_eval --live --save-cost-summary eval/cost_summary.json
 ```
 
 ### One command for the real eval
@@ -72,11 +75,27 @@ SKYCAST_DISABLE_CACHE=1 python -m eval.run_eval --live  # cache off
   cache-read/cache-write tokens (where the client exposes `last_usage`)
   captured on runs that happen anyway. Empirically validates ADR-0001's
   two-call cost (plan is deterministic → zero LLM cost). Also reports an
-  aggregate cache hit-rate and an estimated dollar cost (via
-  `harness/pricing.py`'s illustrative per-model rates) for the whole run
-  — the same pricing path regardless of `SKYCAST_DISABLE_CACHE`, so the
-  two runs' costs are directly comparable (see "A/B cache validation"
-  above).
+  aggregate cache hit-rate and an estimated dollar cost — the same
+  pricing path regardless of `SKYCAST_DISABLE_CACHE`, so the two runs'
+  costs are directly comparable (see "A/B cache validation" above) —
+  plus a within-run counterfactual ("what would this have cost
+  uncached") so a caching saving is visible from a single run.
+- **Unit economics (Task 24):** `harness/pricing.py`'s `MODEL_PRICES` are
+  rates verified against each vendor's live pricing page (never
+  guessed), looked up via `get_price()`. `harness/cost.py`'s `cost_of`/
+  `query_cost` turn a stage's `Usage` (and a whole query's
+  decompose+synthesize pair) into a structured cost, distinguishing
+  "unpriced" (no rate found) from a real $0. The cost note adds a
+  per-query section — mean $/query with the decompose/synthesize split,
+  a per-model $/query breakdown (the number that would inform model
+  routing), and any untabled model named explicitly — built by pairing
+  each case's decompose/synthesize `Usage` samples **by run-index**
+  (nrun.py runs their N-sample loops separately per case, so this is a
+  distributional proxy: only the *mean* over paired queries is
+  meaningful, never an individual pair). `--save-cost-summary` writes
+  the same numbers as a committable JSON snapshot (`harness/
+  cost_summary.py`), mirroring `--save-baseline`'s "measured, not
+  assumed" discipline.
 - **Dataset (Gap 4):** 23 cases across the taxonomy — simple conditions,
   decision/umbrella, multi-day outlook, comparison fan-out, no-location→default,
   ambiguous→clarify, not-found, skip-geocode, time-window stress, and
@@ -118,6 +137,8 @@ eval/
     instrument.py        InstrumentedLLMClient (latency/usage capture)
     judge.py             LLM-as-judge via the LLMClient seam
     baseline.py          baseline save + regression diff
-    pricing.py           per-model $/token rates + compute_cost()
+    pricing.py           live-verified per-model $/token rates + get_price()
+    cost.py              cost_of/QueryCostLine, query_cost/QueryCost
+    cost_summary.py      cost-summary JSON artifact (mirrors baseline.py)
     report.py            variance table, cost note, regression output
 ```
