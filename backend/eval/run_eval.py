@@ -19,6 +19,7 @@ Usage:
   python -m eval.run_eval --live --runs 5 --judge --e2e    # full eval
   python -m eval.run_eval --live --save-baseline eval/baseline.json
   python -m eval.run_eval --live --baseline eval/baseline.json   # regression check
+  python -m eval.run_eval --live --save-cost-summary eval/cost_summary.json
 
 Vendor/model/key from env: LLM_VENDOR (anthropic|openai|gemini),
 the vendor's *_API_KEY, optional LLM_MODEL.
@@ -38,6 +39,7 @@ from eval.harness.aggregate import AggregateReport
 from eval.harness.nrun import run_deterministic_aggregated, run_stochastic_aggregated
 from eval.harness.report import print_variance, print_cost, print_regressions
 from eval.harness.baseline import save_baseline, load_baseline, diff_against_baseline
+from eval.harness.cost_summary import save_cost_summary
 
 
 def _build_llm():
@@ -89,6 +91,9 @@ def main() -> int:
     ap.add_argument("--e2e", action="store_true", help="end-to-end terminal-event checks")
     ap.add_argument("--save-baseline", metavar="PATH", help="write per-stage scores as baseline")
     ap.add_argument("--baseline", metavar="PATH", help="diff this run against a saved baseline")
+    ap.add_argument(
+        "--save-cost-summary", metavar="PATH", help="write a cost-summary JSON artifact"
+    )
     args = ap.parse_args()
 
     report = AggregateReport()
@@ -115,6 +120,9 @@ def main() -> int:
     if args.save_baseline:
         save_baseline(report, args.save_baseline)
         print(f"\nBaseline written to {args.save_baseline}")
+    if args.save_cost_summary:
+        save_cost_summary(report, args.save_cost_summary)
+        print(f"\nCost summary written to {args.save_cost_summary}")
     if args.baseline:
         base = load_baseline(args.baseline)
         if base is None:

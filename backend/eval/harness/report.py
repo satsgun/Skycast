@@ -39,7 +39,7 @@ def print_variance(report: AggregateReport) -> None:
             print(f"    !! {e}")
 
 
-def _per_query_costs(report: AggregateReport) -> list[QueryCost]:
+def per_query_costs(report: AggregateReport) -> list[QueryCost]:
     """Pairs each case's decompose Usage samples with that case's
     synthesize Usage samples by run-index -- nrun.py runs decompose's
     N-loop and synthesize's N-loop separately per case, so run i's
@@ -67,8 +67,22 @@ def _per_query_costs(report: AggregateReport) -> list[QueryCost]:
     return queries
 
 
+def aggregate_usage(report: AggregateReport) -> Usage | None:
+    """Sums every captured Usage across the whole run, regardless of
+    stage. None when nothing was captured at all (e.g. a deterministic-
+    only run). Extracted (Task 24.5) so print_cost's own aggregate
+    lines and the cost-summary artifact (eval/harness/cost_summary.py)
+    read the exact same number, rather than each summing independently.
+    """
+    total: Usage | None = None
+    for usages in report.usages.values():
+        for u in usages:
+            total = u if total is None else total + u
+    return total
+
+
 def _print_per_query_costs(report: AggregateReport) -> None:
-    queries = _per_query_costs(report)
+    queries = per_query_costs(report)
     if not queries:
         return
 
@@ -121,14 +135,12 @@ def print_cost(report: AggregateReport) -> None:
         stage = key.split("::")[1]
         by_stage_usage.setdefault(stage, []).extend(samples)
 
-    all_usages: list[Usage] = []
     for stage in sorted(by_stage_lat):
         lat = by_stage_lat[stage]
         mean_ms = statistics.mean(lat) if lat else 0.0
         line = f"  {stage}: {mean_ms:.0f} ms/call-group (n={len(lat)})"
         stage_usages = by_stage_usage.get(stage)
         if stage_usages:
-            all_usages.extend(stage_usages)
             line += (
                 f", {statistics.mean(u.input_tokens for u in stage_usages):.0f} input"
                 f" / {statistics.mean(u.output_tokens for u in stage_usages):.0f} output"
@@ -149,10 +161,8 @@ def print_cost(report: AggregateReport) -> None:
 
     _print_per_query_costs(report)
 
-    if all_usages:
-        total = all_usages[0]
-        for u in all_usages[1:]:
-            total = total + u
+    total = aggregate_usage(report)
+    if total is not None:
         # cache_hit_rate is exact for all three vendors as of Task 23.7,
         # which normalized OpenAI/Gemini's clients to report input_tokens
         # as the uncached remainder (matching Anthropic's already-
