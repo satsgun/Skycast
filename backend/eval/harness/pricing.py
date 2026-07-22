@@ -55,6 +55,34 @@ MODEL_PRICES: dict[str, ModelPrice] = {
         input_price=0.30e-6, output_price=2.50e-6,
         cache_write_price=0.0, cache_read_price=0.03e-6,
     ),
+    # verified against https://ai.google.dev/gemini-api/docs/pricing on
+    # 2026-07-22 (standard/paid tier, text/image/video input). Not
+    # configured as a default anywhere in this codebase yet -- added so
+    # MODEL_PRICES can price whichever of these an LLM_MODEL override
+    # points at.
+    "gemini-3.6-flash": ModelPrice(
+        input_price=1.50e-6, output_price=7.50e-6,
+        cache_write_price=0.0, cache_read_price=0.15e-6,
+    ),
+    "gemini-3.5-flash": ModelPrice(
+        input_price=1.50e-6, output_price=9.00e-6,
+        cache_write_price=0.0, cache_read_price=0.15e-6,
+    ),
+    # cache_read_price is 0.0 because context caching is "Not available"
+    # for this model per the pricing page (confirmed via a second,
+    # targeted fetch after an initial pass wrongly suggested $0.03/MTok,
+    # likely bleeding over from gemini-2.5-flash's real rate above) --
+    # this model simply never returns cache activity, so the rate is
+    # never actually charged, unlike the "no write premium" 0.0s below
+    # which are a real, always-applicable rate of zero.
+    "gemini-3.5-flash-lite": ModelPrice(
+        input_price=0.30e-6, output_price=2.50e-6,
+        cache_write_price=0.0, cache_read_price=0.0,
+    ),
+    "gemini-3.1-flash-lite": ModelPrice(
+        input_price=0.25e-6, output_price=1.50e-6,
+        cache_write_price=0.0, cache_read_price=0.025e-6,
+    ),
     # gemini-2.0-flash (run_eval.py's default): confirmed shut down
     # 2026-06-01 per Google's own docs -- deliberately absent, not priced.
     # gpt-5-mini (wiring.py's default) / gpt-4o (run_eval.py's default):
