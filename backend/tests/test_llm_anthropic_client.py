@@ -413,3 +413,30 @@ def test_cache_tokens_default_to_zero_when_response_omits_them() -> None:
 
     assert client.last_usage.cache_write_tokens == 0
     assert client.last_usage.cache_read_tokens == 0
+
+
+# --- Task 23.6: cache_enabled A/B toggle ---
+
+
+def test_cache_enabled_false_omits_cache_control_from_tool_and_system() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(
+        model="claude-haiku-4-5-20251001", client=fake, cache_enabled=False
+    )
+
+    _run_get_structured(client)
+
+    call = fake.messages.calls[0]
+    assert "cache_control" not in call["tools"][0]
+    assert call["system"] == [{"type": "text", "text": "sys prompt"}]
+
+
+def test_cache_enabled_default_is_true() -> None:
+    fake = _FakeAnthropicClient([_tool_use_message({"value": "sunny"})])
+    client = AnthropicLLMClient(model="claude-haiku-4-5-20251001", client=fake)
+
+    _run_get_structured(client)
+
+    call = fake.messages.calls[0]
+    assert "cache_control" in call["tools"][0]
+    assert "cache_control" in call["system"][0]

@@ -34,6 +34,12 @@ class AnthropicLLMClient(LLMClient):
     (identical on every call to a given stage) as cacheable via
     Anthropic's prompt caching; the per-call user message is never
     cached, since it varies every call.
+
+    `cache_enabled` (Task 23.6) is the A/B validation toggle: when
+    False, `cache_control` is omitted from both blocks entirely, a
+    genuine request-level opt-out (unlike OpenAI/Gemini, Anthropic has
+    no automatic caching to fall back on -- omitting cache_control
+    really does turn caching off server-side for this call).
     """
 
     def __init__(
@@ -43,11 +49,13 @@ class AnthropicLLMClient(LLMClient):
         client: anthropic.AsyncAnthropic | None = None,
         max_tokens: int = _DEFAULT_MAX_TOKENS,
         cache_ttl: Literal["5m", "1h"] = "5m",
+        cache_enabled: bool = True,
     ) -> None:
         self._model = model
         self._client = client if client is not None else anthropic.AsyncAnthropic()
         self._max_tokens = max_tokens
         self._cache_ttl = cache_ttl
+        self._cache_enabled = cache_enabled
         self.last_usage: Usage | None = None
         self.cumulative_usage: Usage | None = None
 
@@ -92,16 +100,13 @@ class AnthropicLLMClient(LLMClient):
         self, *, system: str, messages: list[dict[str, Any]], tool: dict[str, Any], tool_name: str
     ) -> Any:
         try:
+            system_block: dict[str, Any] = {"type": "text", "text": system}
+            if self._cache_enabled:
+                system_block["cache_control"] = {"type": "ephemeral", "ttl": self._cache_ttl}
             return await self._client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=[
-                    {
-                        "type": "text",
-                        "text": system,
-                        "cache_control": {"type": "ephemeral", "ttl": self._cache_ttl},
-                    }
-                ],
+                system=[system_block],
                 messages=messages,
                 tools=[tool],
                 tool_choice={"type": "tool", "name": tool_name},
@@ -139,12 +144,14 @@ class AnthropicLLMClient(LLMClient):
         return usage
 
     def _build_tool(self, *, schema: type[BaseModel], tool_name: str) -> dict[str, Any]:
-        return {
+        tool: dict[str, Any] = {
             "name": tool_name,
             "description": schema.__doc__ or tool_name,
             "input_schema": schema.model_json_schema(),
-            "cache_control": {"type": "ephemeral", "ttl": self._cache_ttl},
         }
+        if self._cache_enabled:
+            tool["cache_control"] = {"type": "ephemeral", "ttl": self._cache_ttl}
+        return tool
 
     @staticmethod
     def _validate_response(

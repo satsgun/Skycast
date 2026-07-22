@@ -56,11 +56,25 @@ class GeminiLLMClient(LLMClient):
     sources them from config/env and passes them in (never ambient, and
     never logged). `client` is injectable for tests; when omitted, a real
     `genai.Client(api_key=api_key)` is constructed.
+
+    `cache_enabled` (Task 23.6) is the A/B validation toggle. Like
+    OpenAI, Gemini has no request-level opt-out for its implicit caching
+    (per 23.4's own SDK check) -- so False here doesn't change the
+    request at all, only `_record_usage`'s reporting, which then treats
+    the call as if it were uncached.
     """
 
-    def __init__(self, *, model: str, api_key: str, client: genai.Client | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        model: str,
+        api_key: str,
+        client: genai.Client | None = None,
+        cache_enabled: bool = True,
+    ) -> None:
         self._model = model
         self._client = client if client is not None else genai.Client(api_key=api_key)
+        self._cache_enabled = cache_enabled
         self.last_usage: Usage | None = None
         self.cumulative_usage: Usage | None = None
 
@@ -124,12 +138,22 @@ class GeminiLLMClient(LLMClient):
         doesn't support it) -- not an error. There's no write-count
         equivalent field at all, so cache_write_tokens stays at Usage's
         default of 0 for this vendor.
+
+        cache_enabled=False (Task 23.6) can't stop the server from
+        caching, so it forces cache_read_tokens to 0 instead --
+        prompt_token_count is untouched, since it's already inclusive of
+        any cache activity on Gemini's side (unlike Anthropic's
+        exclusive input_tokens -- see Task 23.4's plan notes), so this
+        alone makes the Usage read as fully uncached.
         """
+        cache_read_tokens = 0
+        if self._cache_enabled:
+            cache_read_tokens = response.usage_metadata.cached_content_token_count or 0
         usage = Usage(
             input_tokens=response.usage_metadata.prompt_token_count,
             output_tokens=response.usage_metadata.candidates_token_count,
             model=self._model,
-            cache_read_tokens=response.usage_metadata.cached_content_token_count or 0,
+            cache_read_tokens=cache_read_tokens,
         )
         self.cumulative_usage = (
             usage if self.cumulative_usage is None else self.cumulative_usage + usage

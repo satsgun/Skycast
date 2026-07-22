@@ -22,6 +22,9 @@ Usage:
 
 Vendor/model/key from env: LLM_VENDOR (anthropic|openai|gemini),
 the vendor's *_API_KEY, optional LLM_MODEL.
+A/B cache validation (Task 23.6): set SKYCAST_DISABLE_CACHE (any
+non-empty value) to run with caching off; compare that run's printed
+cost against a normal run for the cache-on vs. cache-off delta.
 """
 
 from __future__ import annotations
@@ -39,20 +42,29 @@ from eval.harness.baseline import save_baseline, load_baseline, diff_against_bas
 
 def _build_llm():
     vendor = os.environ.get("LLM_VENDOR", "anthropic").lower()
+    # Any non-empty value disables caching (no "0"/"false" special-casing
+    # -- unset/empty is the only way to leave caching on). See Task 23.6.
+    cache_enabled = not os.environ.get("SKYCAST_DISABLE_CACHE")
     try:
         if vendor == "anthropic":
             # Anthropic SDK reads ANTHROPIC_API_KEY from env itself.
             if not os.environ.get("ANTHROPIC_API_KEY"):
                 return None
             from skycast.llm.anthropic_client import AnthropicLLMClient
-            return AnthropicLLMClient(model=os.environ.get("LLM_MODEL", "claude-sonnet-4-5"))
+            return AnthropicLLMClient(
+                model=os.environ.get("LLM_MODEL", "claude-sonnet-4-5"),
+                cache_enabled=cache_enabled,
+            )
         if vendor == "openai":
             key = os.environ.get("OPENAI_API_KEY")
             if not key:
                 return None
             from skycast.llm.openai_client import OpenAILLMClient
             # OpenAI client takes the key explicitly (keyword-only).
-            return OpenAILLMClient(model=os.environ.get("LLM_MODEL", "gpt-4o"), api_key=key)
+            return OpenAILLMClient(
+                model=os.environ.get("LLM_MODEL", "gpt-4o"), api_key=key,
+                cache_enabled=cache_enabled,
+            )
         if vendor == "gemini":
             key = os.environ.get("GEMINI_API_KEY")
             if not key:
@@ -60,7 +72,8 @@ def _build_llm():
             from skycast.llm.gemini_client import GeminiLLMClient
             # Gemini client takes the key explicitly (keyword-only).
             return GeminiLLMClient(
-                model=os.environ.get("LLM_MODEL", "gemini-2.0-flash"), api_key=key
+                model=os.environ.get("LLM_MODEL", "gemini-2.0-flash"), api_key=key,
+                cache_enabled=cache_enabled,
             )
     except Exception as e:
         print(f"  ! could not construct {vendor} client: {e}", file=sys.stderr)

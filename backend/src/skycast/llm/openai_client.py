@@ -85,13 +85,25 @@ class OpenAILLMClient(LLMClient):
     sources them from config/env and passes them in (never ambient, and
     never logged). `client` is injectable for tests; when omitted, a real
     `openai.AsyncOpenAI(api_key=api_key)` is constructed.
+
+    `cache_enabled` (Task 23.6) is the A/B validation toggle. Unlike
+    Anthropic, OpenAI has no request-level cache opt-out (caching is
+    always automatic server-side, per 23.3's own SDK check) -- so
+    False here doesn't change the request at all, only `_record_usage`'s
+    reporting, which then treats the call as if it were uncached.
     """
 
     def __init__(
-        self, *, model: str, api_key: str, client: openai.AsyncOpenAI | None = None
+        self,
+        *,
+        model: str,
+        api_key: str,
+        client: openai.AsyncOpenAI | None = None,
+        cache_enabled: bool = True,
     ) -> None:
         self._model = model
         self._client = client if client is not None else openai.AsyncOpenAI(api_key=api_key)
+        self._cache_enabled = cache_enabled
         self.last_usage: Usage | None = None
         self.cumulative_usage: Usage | None = None
 
@@ -166,14 +178,26 @@ class OpenAILLMClient(LLMClient):
         not an error). completion.usage.prompt_tokens_details is None
         on a response with no cache data at all (older responses, or a
         request where caching never had a chance to engage).
+
+        cache_enabled=False (Task 23.6) can't stop the server from
+        caching, so it forces the reported cache fields to 0 instead --
+        prompt_tokens is untouched, since it's already inclusive of any
+        cache activity on OpenAI's side (unlike Anthropic's exclusive
+        input_tokens -- see Task 23.4's plan notes), so this alone makes
+        the Usage read as fully uncached.
         """
         details = completion.usage.prompt_tokens_details
+        cache_read_tokens = 0
+        cache_write_tokens = 0
+        if self._cache_enabled and details is not None:
+            cache_read_tokens = details.cached_tokens or 0
+            cache_write_tokens = details.cache_write_tokens or 0
         usage = Usage(
             input_tokens=completion.usage.prompt_tokens,
             output_tokens=completion.usage.completion_tokens,
             model=self._model,
-            cache_read_tokens=(details.cached_tokens or 0) if details is not None else 0,
-            cache_write_tokens=(details.cache_write_tokens or 0) if details is not None else 0,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
         )
         self.cumulative_usage = (
             usage if self.cumulative_usage is None else self.cumulative_usage + usage

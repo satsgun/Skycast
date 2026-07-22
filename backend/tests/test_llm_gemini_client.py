@@ -331,6 +331,30 @@ def test_cache_read_tokens_defaults_to_zero_when_response_omits_cached_content_t
     assert client.last_usage.cache_read_tokens == 0
 
 
+# --- Task 23.6: cache_enabled A/B toggle ---
+
+
+def test_cache_enabled_false_zeroes_cache_read_tokens_even_when_response_reports_them() -> None:
+    """No request-level opt-out exists for Gemini's implicit caching
+    (verified against the SDK in 23.4) -- cache_enabled=False can't stop
+    the server from caching, so it makes the client's own reporting
+    treat the call as uncached instead. input_tokens is untouched since
+    it's already inclusive of any cache activity on Gemini's side.
+    """
+    response = _valid_response(
+        {"value": "sunny"}, usage_metadata=_usage_metadata(cached_content_token_count=900)
+    )
+    fake = _FakeGeminiClient([response])
+    client = GeminiLLMClient(
+        model="gemini-2.5-flash", api_key="test-key", client=fake, cache_enabled=False
+    )
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_read_tokens == 0
+    assert client.last_usage.input_tokens == 10
+
+
 # --- _sanitize_schema ---
 
 _UNSUPPORTED_KEYWORDS = [

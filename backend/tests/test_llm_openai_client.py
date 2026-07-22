@@ -377,6 +377,30 @@ def test_cache_counts_default_to_zero_when_response_omits_prompt_tokens_details(
     assert client.last_usage.cache_write_tokens == 0
 
 
+# --- Task 23.6: cache_enabled A/B toggle ---
+
+
+def test_cache_enabled_false_zeroes_cache_fields_even_when_response_reports_them() -> None:
+    """No request-level opt-out exists for OpenAI's automatic caching
+    (verified against the SDK in 23.3) -- cache_enabled=False can't stop
+    the server from caching, so it makes the client's own reporting
+    treat the call as uncached instead. input_tokens is untouched since
+    it's already inclusive of any cache activity on OpenAI's side.
+    """
+    real = AsyncOpenAI(api_key="test-key")
+    fake_chat = _FakeChat([_valid_completion({"value": "sunny"}, usage=_usage(
+        cached_tokens=900, cache_write_tokens=100
+    ))])
+    real.chat = fake_chat
+    client = OpenAILLMClient(model="gpt-5", api_key="test-key", client=real, cache_enabled=False)
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_read_tokens == 0
+    assert client.last_usage.cache_write_tokens == 0
+    assert client.last_usage.input_tokens == 10
+
+
 # --- _sanitize_schema ---
 
 _ALL_UNSUPPORTED_KEYWORDS = [

@@ -12,6 +12,7 @@ import statistics
 
 from eval.harness.aggregate import AggregateReport
 from eval.harness.baseline import Regression
+from eval.harness.pricing import compute_cost
 from skycast.llm.usage import Usage
 
 
@@ -80,6 +81,19 @@ def print_cost(report: AggregateReport) -> None:
         # cache activity -- a known, pre-existing vendor-semantics gap
         # (see Task 23.4's plan), tracked for a real fix in Task 23.7.
         print(f"  cache hit-rate (aggregate across this run): {total.cache_hit_rate:.2f}")
+
+        # Task 23.6: compute_cost is the SAME function regardless of
+        # whether this run had SKYCAST_DISABLE_CACHE set -- a cache-off
+        # run's Usage already has its cache fields zeroed by the client
+        # itself (see anthropic/openai/gemini_client.py's cache_enabled
+        # handling), so comparing this line across two runs isolates the
+        # cache token mix as the only source of the delta, never a
+        # difference in how the two runs were priced.
+        cost = compute_cost(total)
+        if cost is not None:
+            print(f"  estimated cost (aggregate across this run): ${cost:.4f}")
+        else:
+            print(f"  cost n/a (no pricing data for model {total.model!r})")
 
     # ADR-0001 evidence: decompose + plan are the two-call split; if plan
     # is deterministic (no latency captured), note the LLM-call cost is the
