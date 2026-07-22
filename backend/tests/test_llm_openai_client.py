@@ -23,13 +23,19 @@ class _Canned(BaseModel):
 
 
 def _usage(
-    *, cached_tokens: int | None = None, cache_write_tokens: int | None = None
+    *,
+    prompt_tokens: int = 10,
+    cached_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
 ) -> CompletionUsage:
     details = None
     if cached_tokens is not None or cache_write_tokens is not None:
         details = PromptTokensDetails(cached_tokens=cached_tokens, cache_write_tokens=cache_write_tokens)
     return CompletionUsage(
-        prompt_tokens=10, completion_tokens=5, total_tokens=15, prompt_tokens_details=details
+        prompt_tokens=prompt_tokens,
+        completion_tokens=5,
+        total_tokens=prompt_tokens + 5,
+        prompt_tokens_details=details,
     )
 
 
@@ -353,19 +359,24 @@ def test_message_order_already_has_system_prompt_leading() -> None:
 
 
 def test_cache_counts_from_response_are_captured_into_usage() -> None:
+    """prompt_tokens (1000) is inclusive of cache activity on OpenAI's
+    side (Task 23.7) -- input_tokens must come back as the uncached
+    remainder (1000 - 800 - 100 == 100), not the raw prompt_tokens.
+    """
     client, _ = _build_client(
         [
             _valid_completion(
                 {"value": "sunny"},
-                usage=_usage(cached_tokens=900, cache_write_tokens=100),
+                usage=_usage(prompt_tokens=1000, cached_tokens=800, cache_write_tokens=100),
             )
         ]
     )
 
     _run_get_structured(client)
 
-    assert client.last_usage.cache_read_tokens == 900
+    assert client.last_usage.cache_read_tokens == 800
     assert client.last_usage.cache_write_tokens == 100
+    assert client.last_usage.input_tokens == 100
 
 
 def test_cache_counts_default_to_zero_when_response_omits_prompt_tokens_details() -> None:

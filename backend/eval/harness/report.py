@@ -75,11 +75,11 @@ def print_cost(report: AggregateReport) -> None:
         total = all_usages[0]
         for u in all_usages[1:]:
             total = total + u
-        # NOTE: cache_hit_rate is exact for Anthropic (input_tokens is
-        # verified exclusive of cache activity there) but understates the
-        # true rate for OpenAI/Gemini, whose input_tokens is inclusive of
-        # cache activity -- a known, pre-existing vendor-semantics gap
-        # (see Task 23.4's plan), tracked for a real fix in Task 23.7.
+        # cache_hit_rate is exact for all three vendors as of Task 23.7,
+        # which normalized OpenAI/Gemini's clients to report input_tokens
+        # as the uncached remainder (matching Anthropic's already-
+        # exclusive convention) -- prior to that fix, this understated
+        # the true rate for OpenAI/Gemini specifically.
         print(f"  cache hit-rate (aggregate across this run): {total.cache_hit_rate:.2f}")
 
         # Task 23.6: compute_cost is the SAME function regardless of

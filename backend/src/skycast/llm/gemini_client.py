@@ -139,18 +139,24 @@ class GeminiLLMClient(LLMClient):
         equivalent field at all, so cache_write_tokens stays at Usage's
         default of 0 for this vendor.
 
+        response.usage_metadata.prompt_token_count is inclusive of cache
+        activity on Gemini's side (unlike Anthropic's exclusive
+        input_tokens), so input_tokens here is computed as the uncached
+        remainder -- prompt_token_count minus whatever was read from
+        cache (Task 23.7) -- keeping Usage.input_tokens meaning the same
+        thing regardless of vendor.
+
         cache_enabled=False (Task 23.6) can't stop the server from
-        caching, so it forces cache_read_tokens to 0 instead --
-        prompt_token_count is untouched, since it's already inclusive of
-        any cache activity on Gemini's side (unlike Anthropic's
-        exclusive input_tokens -- see Task 23.4's plan notes), so this
-        alone makes the Usage read as fully uncached.
+        caching, so it forces cache_read_tokens to 0 instead; with the
+        subtrahend 0, input_tokens falls back to the raw
+        prompt_token_count unchanged, correctly reporting the call as
+        fully uncached.
         """
         cache_read_tokens = 0
         if self._cache_enabled:
             cache_read_tokens = response.usage_metadata.cached_content_token_count or 0
         usage = Usage(
-            input_tokens=response.usage_metadata.prompt_token_count,
+            input_tokens=response.usage_metadata.prompt_token_count - cache_read_tokens,
             output_tokens=response.usage_metadata.candidates_token_count,
             model=self._model,
             cache_read_tokens=cache_read_tokens,

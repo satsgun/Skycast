@@ -9,6 +9,11 @@ def test_total_tokens_is_input_plus_output() -> None:
     assert usage.total_tokens == 15
 
 
+def test_total_tokens_includes_cache_write_and_cache_read_tokens() -> None:
+    usage = Usage(input_tokens=10, output_tokens=5, cache_write_tokens=100, cache_read_tokens=900)
+    assert usage.total_tokens == 1015
+
+
 def test_model_defaults_to_none() -> None:
     usage = Usage(input_tokens=10, output_tokens=5)
     assert usage.model is None

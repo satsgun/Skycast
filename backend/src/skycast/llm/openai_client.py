@@ -179,12 +179,18 @@ class OpenAILLMClient(LLMClient):
         on a response with no cache data at all (older responses, or a
         request where caching never had a chance to engage).
 
+        completion.usage.prompt_tokens is inclusive of cache activity on
+        OpenAI's side (unlike Anthropic's exclusive input_tokens), so
+        input_tokens here is computed as the uncached remainder --
+        prompt_tokens minus whatever was read from/written to cache
+        (Task 23.7) -- keeping Usage.input_tokens meaning the same thing
+        regardless of vendor.
+
         cache_enabled=False (Task 23.6) can't stop the server from
-        caching, so it forces the reported cache fields to 0 instead --
-        prompt_tokens is untouched, since it's already inclusive of any
-        cache activity on OpenAI's side (unlike Anthropic's exclusive
-        input_tokens -- see Task 23.4's plan notes), so this alone makes
-        the Usage read as fully uncached.
+        caching, so it forces the reported cache fields to 0 instead;
+        with both subtrahends 0, input_tokens falls back to the raw
+        prompt_tokens unchanged, correctly reporting the call as fully
+        uncached.
         """
         details = completion.usage.prompt_tokens_details
         cache_read_tokens = 0
@@ -193,7 +199,7 @@ class OpenAILLMClient(LLMClient):
             cache_read_tokens = details.cached_tokens or 0
             cache_write_tokens = details.cache_write_tokens or 0
         usage = Usage(
-            input_tokens=completion.usage.prompt_tokens,
+            input_tokens=completion.usage.prompt_tokens - cache_read_tokens - cache_write_tokens,
             output_tokens=completion.usage.completion_tokens,
             model=self._model,
             cache_read_tokens=cache_read_tokens,

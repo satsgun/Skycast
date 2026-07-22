@@ -27,12 +27,12 @@ class _Canned(BaseModel):
 
 
 def _usage_metadata(
-    *, cached_content_token_count: int | None = None
+    *, prompt_token_count: int = 10, cached_content_token_count: int | None = None
 ) -> types.GenerateContentResponseUsageMetadata:
     return types.GenerateContentResponseUsageMetadata(
-        prompt_token_count=10,
+        prompt_token_count=prompt_token_count,
         candidates_token_count=5,
-        total_token_count=15,
+        total_token_count=prompt_token_count + 5,
         cached_content_token_count=cached_content_token_count,
     )
 
@@ -310,15 +310,22 @@ def test_exception_during_repair_call_records_first_calls_usage_but_not_last_usa
 
 
 def test_cached_content_token_count_is_captured_into_cache_read_tokens() -> None:
+    """prompt_token_count (1000) is inclusive of cache activity on
+    Gemini's side (Task 23.7) -- input_tokens must come back as the
+    uncached remainder (1000 - 800 == 200), not the raw
+    prompt_token_count.
+    """
     response = _valid_response(
-        {"value": "sunny"}, usage_metadata=_usage_metadata(cached_content_token_count=900)
+        {"value": "sunny"},
+        usage_metadata=_usage_metadata(prompt_token_count=1000, cached_content_token_count=800),
     )
     client, _ = _build_client([response])
 
     _run_get_structured(client)
 
-    assert client.last_usage.cache_read_tokens == 900
+    assert client.last_usage.cache_read_tokens == 800
     assert client.last_usage.cache_write_tokens == 0
+    assert client.last_usage.input_tokens == 200
 
 
 def test_cache_read_tokens_defaults_to_zero_when_response_omits_cached_content_token_count() -> (

@@ -20,12 +20,16 @@ class Usage(BaseModel):
 
     cache_write_tokens/cache_read_tokens (Task 23.1) are NOT included in
     input_tokens -- they're separate, additive components of a call's
-    total input. Verified against the Anthropic SDK's own usage-totaling
-    code (anthropic.lib.tools._beta_runner, which computes total input
-    as input_tokens + cache_creation_input_tokens +
-    cache_read_input_tokens): input_tokens there is specifically the
-    *uncached* portion. Both default 0 so a Usage with no cache activity
-    (or from a vendor/path that doesn't report it) is unaffected.
+    total input. This is a cross-vendor invariant every client enforces
+    at the point it builds a Usage (Task 23.7): Anthropic's own SDK
+    reports input_tokens as already the *uncached* portion (verified
+    against anthropic.lib.tools._beta_runner's own usage-totaling code),
+    but OpenAI's prompt_tokens and Gemini's prompt_token_count are
+    *inclusive* of cache activity on the wire -- those two clients
+    subtract the cached portion back out before constructing a Usage,
+    so input_tokens means the same thing regardless of vendor. Both
+    cache fields default 0 so a Usage with no cache activity (or from a
+    vendor/path that doesn't report it) is unaffected.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -38,8 +42,18 @@ class Usage(BaseModel):
 
     @property
     def total_tokens(self) -> int:
-        """Derived, not stored -- input + output for this usage record."""
-        return self.input_tokens + self.output_tokens
+        """Derived, not stored -- the true all-in token count: input +
+        output + cache_write_tokens + cache_read_tokens (Task 23.7).
+        Cache tokens are never part of input_tokens (see class
+        docstring), so they'd be silently dropped from this total if
+        not added explicitly here.
+        """
+        return (
+            self.input_tokens
+            + self.output_tokens
+            + self.cache_write_tokens
+            + self.cache_read_tokens
+        )
 
     @property
     def cache_hit_rate(self) -> float:
@@ -47,7 +61,11 @@ class Usage(BaseModel):
 
         Total input is input_tokens (uncached) + cache_write_tokens +
         cache_read_tokens (see class docstring). 0.0 on a Usage with no
-        input-side tokens at all, rather than raising.
+        input-side tokens at all, rather than raising. This formula
+        relies on input_tokens being exclusive of cache activity for
+        every vendor -- true since Task 23.7 normalized OpenAI/Gemini to
+        match Anthropic's already-exclusive convention (prior to that,
+        this understated the true rate for those two vendors).
         """
         total_input = self.input_tokens + self.cache_write_tokens + self.cache_read_tokens
         if total_input == 0:
