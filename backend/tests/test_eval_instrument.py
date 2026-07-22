@@ -33,24 +33,25 @@ def _call(client: InstrumentedLLMClient) -> None:
     )
 
 
-def test_snapshot_and_reset_reports_total_tokens_when_inner_client_sets_usage() -> None:
+def test_snapshot_and_reset_reports_usage_when_inner_client_sets_usage() -> None:
     inner = _StubClient(last_usage=Usage(input_tokens=10, output_tokens=5))
     client = InstrumentedLLMClient(inner)
 
     _call(client)
-    _, tokens = client.snapshot_and_reset()
+    _, usage = client.snapshot_and_reset()
 
-    assert tokens == 15
+    assert usage.input_tokens == 10
+    assert usage.output_tokens == 5
 
 
-def test_snapshot_and_reset_reports_none_tokens_when_inner_client_has_no_usage() -> None:
+def test_snapshot_and_reset_reports_none_usage_when_inner_client_has_no_usage() -> None:
     inner = _StubClient(last_usage=None)
     client = InstrumentedLLMClient(inner)
 
     _call(client)
-    _, tokens = client.snapshot_and_reset()
+    _, usage = client.snapshot_and_reset()
 
-    assert tokens is None
+    assert usage is None
 
 
 def test_snapshot_and_reset_accumulates_across_multiple_calls_before_reset() -> None:
@@ -59,24 +60,40 @@ def test_snapshot_and_reset_accumulates_across_multiple_calls_before_reset() -> 
 
     _call(client)
     _call(client)
-    _, tokens = client.snapshot_and_reset()
+    _, usage = client.snapshot_and_reset()
 
-    assert tokens == 30
+    assert usage.input_tokens == 20
+    assert usage.output_tokens == 10
 
 
-def test_snapshot_and_reset_resets_has_tokens_flag_not_just_the_count() -> None:
+def test_snapshot_and_reset_resets_usage_not_just_the_count() -> None:
     """A later snapshot with no new get_structured() call in between
-    must report None, not 0 -- otherwise a failed call following an
-    earlier success in the same shared-instance session (nrun.py reuses
-    one InstrumentedLLMClient across every case/stage/run) would
-    silently contribute a phantom "0 tokens" data point to the reported
-    average instead of being excluded as unknown.
+    must report None, not a zeroed Usage -- otherwise a failed call
+    following an earlier success in the same shared-instance session
+    (nrun.py reuses one InstrumentedLLMClient across every case/stage/
+    run) would silently contribute a phantom all-zero data point to the
+    reported average instead of being excluded as unknown.
     """
     inner = _StubClient(last_usage=Usage(input_tokens=10, output_tokens=5))
     client = InstrumentedLLMClient(inner)
 
     _call(client)
     client.snapshot_and_reset()
-    _, tokens = client.snapshot_and_reset()
+    _, usage = client.snapshot_and_reset()
 
-    assert tokens is None
+    assert usage is None
+
+
+def test_snapshot_and_reset_preserves_cache_read_and_write_tokens() -> None:
+    inner = _StubClient(
+        last_usage=Usage(
+            input_tokens=10, output_tokens=5, cache_read_tokens=900, cache_write_tokens=15
+        )
+    )
+    client = InstrumentedLLMClient(inner)
+
+    _call(client)
+    _, usage = client.snapshot_and_reset()
+
+    assert usage.cache_read_tokens == 900
+    assert usage.cache_write_tokens == 15

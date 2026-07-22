@@ -12,6 +12,7 @@ import statistics
 
 from eval.harness.aggregate import AggregateReport
 from eval.harness.baseline import Regression
+from skycast.llm.usage import Usage
 
 
 def print_variance(report: AggregateReport) -> None:
@@ -40,25 +41,45 @@ def print_cost(report: AggregateReport) -> None:
     if not report.timings_ms:
         return
     print("\n=== Cost / latency (per stage, mean over runs) ===")
-    # aggregate latency by stage name
+    # aggregate latency + usage by stage name
     by_stage_lat: dict[str, list[float]] = {}
-    by_stage_tok: dict[str, list[int]] = {}
+    by_stage_usage: dict[str, list[Usage]] = {}
     for key, samples in report.timings_ms.items():
         stage = key.split("::")[1]
         by_stage_lat.setdefault(stage, []).extend(samples)
-    for key, samples in report.tokens.items():
+    for key, samples in report.usages.items():
         stage = key.split("::")[1]
-        by_stage_tok.setdefault(stage, []).extend(samples)
+        by_stage_usage.setdefault(stage, []).extend(samples)
 
+    all_usages: list[Usage] = []
     for stage in sorted(by_stage_lat):
         lat = by_stage_lat[stage]
         mean_ms = statistics.mean(lat) if lat else 0.0
         line = f"  {stage}: {mean_ms:.0f} ms/call-group (n={len(lat)})"
-        if stage in by_stage_tok and by_stage_tok[stage]:
-            line += f", {statistics.mean(by_stage_tok[stage]):.0f} tokens"
+        stage_usages = by_stage_usage.get(stage)
+        if stage_usages:
+            all_usages.extend(stage_usages)
+            line += (
+                f", {statistics.mean(u.input_tokens for u in stage_usages):.0f} input"
+                f" / {statistics.mean(u.output_tokens for u in stage_usages):.0f} output"
+                f" / {statistics.mean(u.cache_read_tokens for u in stage_usages):.0f} cache-read"
+                f" / {statistics.mean(u.cache_write_tokens for u in stage_usages):.0f} cache-write"
+                " tokens"
+            )
         else:
             line += ", tokens n/a (not exposed by seam)"
         print(line)
+
+    if all_usages:
+        total = all_usages[0]
+        for u in all_usages[1:]:
+            total = total + u
+        # NOTE: cache_hit_rate is exact for Anthropic (input_tokens is
+        # verified exclusive of cache activity there) but understates the
+        # true rate for OpenAI/Gemini, whose input_tokens is inclusive of
+        # cache activity -- a known, pre-existing vendor-semantics gap
+        # (see Task 23.4's plan), tracked for a real fix in Task 23.7.
+        print(f"  cache hit-rate (aggregate across this run): {total.cache_hit_rate:.2f}")
 
     # ADR-0001 evidence: decompose + plan are the two-call split; if plan
     # is deterministic (no latency captured), note the LLM-call cost is the

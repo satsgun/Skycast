@@ -14,6 +14,7 @@ import statistics
 from dataclasses import dataclass, field
 
 from eval.harness.types import SCORED_STAGES, Stage, Tier
+from skycast.llm.usage import Usage
 
 
 @dataclass
@@ -83,9 +84,9 @@ class StageAggregate:
 @dataclass
 class AggregateReport:
     stages: list[StageAggregate] = field(default_factory=list)
-    # per-(case,stage) latency + token samples, filled by instrumentation (Gap 3)
+    # per-(case,stage) latency + usage samples, filled by instrumentation (Gap 3)
     timings_ms: dict[str, list[float]] = field(default_factory=dict)
-    tokens: dict[str, list[int]] = field(default_factory=dict)
+    usages: dict[str, list[Usage]] = field(default_factory=dict)
 
     def add(self, s: StageAggregate) -> None:
         self.stages.append(s)

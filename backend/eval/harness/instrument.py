@@ -19,6 +19,7 @@ import time
 from pydantic import BaseModel
 
 from skycast.llm.client import LLMClient
+from skycast.llm.usage import Usage
 
 
 class InstrumentedLLMClient(LLMClient):
@@ -26,8 +27,7 @@ class InstrumentedLLMClient(LLMClient):
         self._inner = inner
         self.call_count = 0
         self.total_latency_ms = 0.0
-        self.total_tokens = 0
-        self._has_tokens = False
+        self._usage: Usage | None = None
 
     async def get_structured(
         self, *, system: str, user: str, schema: type[BaseModel], tool_name: str
@@ -41,22 +41,23 @@ class InstrumentedLLMClient(LLMClient):
         self.total_latency_ms += elapsed_ms
         usage = getattr(self._inner, "last_usage", None)
         if usage is not None:
-            self._has_tokens = True
-            self.total_tokens += usage.total_tokens
+            self._usage = usage if self._usage is None else self._usage + usage
         return result
 
-    def snapshot_and_reset(self) -> tuple[float, int | None]:
-        """Return (latency_ms, tokens_or_None) accumulated since last
-        reset. _has_tokens resets here too, not just the count -- it
-        must reflect only calls since the last reset, or a failed call
-        following an earlier success would report 0 tokens instead of
-        None (the caller, nrun.py, reuses one instance across every
+    def snapshot_and_reset(self) -> tuple[float, Usage | None]:
+        """Return (latency_ms, usage_or_None) accumulated since last
+        reset. The full Usage (Task 23.5) is returned rather than just
+        a total-tokens int, so callers can report the input/output/
+        cache-read/cache-write breakdown, not just their sum. _usage
+        resets here too, not just its value -- it must reflect only
+        calls since the last reset, or a failed call following an
+        earlier success would report a zeroed Usage instead of None
+        (the caller, nrun.py, reuses one instance across every
         case/stage/run, so this instance's "ever" and "since last
         reset" are not the same thing).
         """
         lat = self.total_latency_ms
-        tok = self.total_tokens if self._has_tokens else None
+        usage = self._usage
         self.total_latency_ms = 0.0
-        self.total_tokens = 0
-        self._has_tokens = False
-        return lat, tok
+        self._usage = None
+        return lat, usage

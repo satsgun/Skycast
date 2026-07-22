@@ -19,6 +19,7 @@ from eval.harness.stochastic import (
     run_decompose, run_synthesize, run_end_to_end,
 )
 from eval.harness.judge import make_judge
+from skycast.llm.usage import Usage
 from skycast.providers.in_memory import InMemoryProvider
 
 
@@ -70,7 +71,7 @@ def run_stochastic_aggregated(
         for stage, runner in stages:
             agg = StageAggregate(case.id, stage, Tier.STOCHASTIC, runs=0)
             timings: list[float] = []
-            toks: list[int] = []
+            usages: list[Usage] = []
             any_ran = False
             for _ in range(n):
                 instrumented.snapshot_and_reset()  # clear before this run
@@ -80,12 +81,12 @@ def run_stochastic_aggregated(
                 any_ran = True
                 agg.runs += 1
                 _fold_single(agg, sr)
-                lat, tok = instrumented.snapshot_and_reset()
+                lat, usage = instrumented.snapshot_and_reset()
                 timings.append(lat)
-                if tok is not None:
-                    toks.append(tok)
+                if usage is not None:
+                    usages.append(usage)
             if any_ran:
                 report.add(agg)
                 report.timings_ms[_key(case.id, stage)] = timings
-                if toks:
-                    report.tokens[_key(case.id, stage)] = toks
+                if usages:
+                    report.usages[_key(case.id, stage)] = usages
