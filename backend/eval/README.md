@@ -4,7 +4,7 @@ Evaluates the agent's correctness by importing the **real pipeline stages
 directly** — no deployment. Weather is always `InMemoryProvider` (fixed →
 assertable); the LLM is real only for the stochastic tiers, gated by key.
 
-Conforms to the wiki sketch "Skycast — Minimum Evaluation Harness": per-stage
+Conforms to the wiki sketch [Skycast — Minimum Evaluation Harness](https://github.com/satsgun/Skycast/wiki/Skycast-%E2%80%94-Minimum-Evaluation-Harness-(Sketch)): per-stage
 scoring, real-model/mocked-provider split, N-run variance, baseline regression
 detection, and cost/latency instrumentation.
 
