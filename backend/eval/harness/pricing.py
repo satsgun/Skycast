@@ -17,17 +17,12 @@ absent from MODEL_PRICES below, not present with a guessed or stale
 rate. get_price() resolves that absence to None, never a crash or a
 silent 0-rate ModelPrice.
 
-compute_cost is the single pricing path for both cache-on and cache-off
-runs (Task 23.6's own requirement) -- it does no vendor branching at
-all. The cache-off Usage it's given already has its cache fields zeroed
-correctly per-vendor by the client itself (see anthropic_client.py /
-openai_client.py / gemini_client.py's cache_enabled handling), so this
-function only ever does one thing: multiply each bucket by its rate.
+Turning a price + Usage into an actual dollar cost is cost.py's job
+(Task 24.2's cost_of), not this module's -- this module only owns the
+rate data and its lookup.
 """
 
 from dataclasses import dataclass
-
-from skycast.llm.usage import Usage
 
 
 @dataclass(frozen=True)
@@ -75,21 +70,3 @@ def get_price(model: str) -> ModelPrice | None:
     which of this codebase's configured models currently resolve here.
     """
     return MODEL_PRICES.get(model)
-
-
-def compute_cost(usage: Usage) -> float | None:
-    """USD cost of one Usage record, or None when it can't be priced (no
-    model attributed, or a model get_price() doesn't know about). Not an
-    error: an unpriced model is a normal, expected gap, not a bug.
-    """
-    if usage.model is None:
-        return None
-    price = get_price(usage.model)
-    if price is None:
-        return None
-    return (
-        usage.input_tokens * price.input_price
-        + usage.output_tokens * price.output_price
-        + usage.cache_write_tokens * price.cache_write_price
-        + usage.cache_read_tokens * price.cache_read_price
-    )

@@ -12,7 +12,7 @@ import statistics
 
 from eval.harness.aggregate import AggregateReport
 from eval.harness.baseline import Regression
-from eval.harness.pricing import compute_cost
+from eval.harness.cost import cost_of
 from skycast.llm.usage import Usage
 
 
@@ -82,16 +82,16 @@ def print_cost(report: AggregateReport) -> None:
         # the true rate for OpenAI/Gemini specifically.
         print(f"  cache hit-rate (aggregate across this run): {total.cache_hit_rate:.2f}")
 
-        # Task 23.6: compute_cost is the SAME function regardless of
-        # whether this run had SKYCAST_DISABLE_CACHE set -- a cache-off
-        # run's Usage already has its cache fields zeroed by the client
-        # itself (see anthropic/openai/gemini_client.py's cache_enabled
+        # Task 23.6: cost_of is the SAME function regardless of whether
+        # this run had SKYCAST_DISABLE_CACHE set -- a cache-off run's
+        # Usage already has its cache fields zeroed by the client itself
+        # (see anthropic/openai/gemini_client.py's cache_enabled
         # handling), so comparing this line across two runs isolates the
         # cache token mix as the only source of the delta, never a
         # difference in how the two runs were priced.
-        cost = compute_cost(total)
-        if cost is not None:
-            print(f"  estimated cost (aggregate across this run): ${cost:.4f}")
+        cost_line = cost_of(total)
+        if not cost_line.unpriced:
+            print(f"  estimated cost (aggregate across this run): ${cost_line.total_cost:.4f}")
         else:
             print(f"  cost n/a (no pricing data for model {total.model!r})")
 

@@ -2,7 +2,7 @@
 read/cache-write breakdown per stage plus an aggregate cache hit-rate,
 instead of collapsing everything into a single mean-tokens number.
 Also covers Task 23.6: an aggregate estimated-dollar-cost line, computed
-via eval.harness.pricing.compute_cost -- the shared pricing path a
+via eval.harness.cost.cost_of (Task 24.2) -- the shared pricing path a
 cache-on and a cache-off eval run both use, so the two runs' printed
 costs are directly comparable.
 """
@@ -10,7 +10,7 @@ costs are directly comparable.
 from __future__ import annotations
 
 from eval.harness.aggregate import AggregateReport
-from eval.harness.pricing import compute_cost
+from eval.harness.cost import cost_of
 from eval.harness.report import print_cost
 from skycast.llm.usage import Usage
 
@@ -89,7 +89,7 @@ def test_print_cost_reports_aggregate_estimated_cost_for_a_known_model(capsys) -
     print_cost(report)
 
     out = capsys.readouterr().out
-    expected = compute_cost(usage)
+    expected = cost_of(usage).total_cost
     assert f"estimated cost (aggregate across this run): ${expected:.4f}" in out
 
 
