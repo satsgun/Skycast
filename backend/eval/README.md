@@ -47,6 +47,17 @@ LLM_VENDOR=anthropic ANTHROPIC_API_KEY=sk-... \
 Vendor-swappable via the `LLMClient` seam: `LLM_VENDOR=openai|gemini` + that
 vendor's `*_API_KEY`, optional `LLM_MODEL`.
 
+### A/B cache validation
+
+Set `SKYCAST_DISABLE_CACHE` (any non-empty value) to run with prompt
+caching off, then diff the printed cost note against a normal `--live`
+run for the cache-on vs. cache-off delta:
+
+```bash
+python -m eval.run_eval --live                       # cache on (default)
+SKYCAST_DISABLE_CACHE=1 python -m eval.run_eval --live  # cache off
+```
+
 ## What each gap-closure does
 
 - **Variance (Gap 1):** N runs per stochastic case → `mean ± stdev`. A stage's
@@ -57,9 +68,15 @@ vendor's `*_API_KEY`, optional `LLM_MODEL`.
   sits above the stage's own measured variance, so noise doesn't trip it.
   Regressions **localize** to a stage (a decompose drop points at the decompose
   prompt, not the planner). Exit code 1 on a flagged regression → CI gate.
-- **Cost / latency (Gap 3):** per-stage wall-clock + tokens (where the client
-  exposes `last_usage`) captured on runs that happen anyway. Empirically
-  validates ADR-0001's two-call cost (plan is deterministic → zero LLM cost).
+- **Cost / latency (Gap 3):** per-stage wall-clock + mean input/output/
+  cache-read/cache-write tokens (where the client exposes `last_usage`)
+  captured on runs that happen anyway. Empirically validates ADR-0001's
+  two-call cost (plan is deterministic → zero LLM cost). Also reports an
+  aggregate cache hit-rate and an estimated dollar cost (via
+  `harness/pricing.py`'s illustrative per-model rates) for the whole run
+  — the same pricing path regardless of `SKYCAST_DISABLE_CACHE`, so the
+  two runs' costs are directly comparable (see "A/B cache validation"
+  above).
 - **Dataset (Gap 4):** 23 cases across the taxonomy — simple conditions,
   decision/umbrella, multi-day outlook, comparison fan-out, no-location→default,
   ambiguous→clarify, not-found, skip-geocode, time-window stress, and
@@ -98,8 +115,9 @@ eval/
     deterministic.py     plan + execute runners (real code + InMemoryProvider)
     stochastic.py        decompose + synthesize + end-to-end runners
     nrun.py              N-run driver + timing capture
-    instrument.py        InstrumentedLLMClient (latency/token capture)
+    instrument.py        InstrumentedLLMClient (latency/usage capture)
     judge.py             LLM-as-judge via the LLMClient seam
     baseline.py          baseline save + regression diff
+    pricing.py           per-model $/token rates + compute_cost()
     report.py            variance table, cost note, regression output
 ```
