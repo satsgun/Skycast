@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from eval.harness.pricing import get_price
 from skycast.llm.usage import Usage
 
+UNPRICED = "unpriced"
+
 
 @dataclass(frozen=True)
 class QueryCostLine:
@@ -19,10 +21,10 @@ class QueryCostLine:
 
     model is the resolved name cost_of used to look up pricing -- either
     a real model name (from usage.model or the model argument) or the
-    literal string "unpriced" when neither was available. unpriced is
+    UNPRICED sentinel when neither was available. unpriced is
     True whenever no price could be found for that name (whether the
-    name is real-but-untabled, e.g. "gpt-4o", or the "unpriced"
-    sentinel itself) -- the two cases stay distinguishable via `model`,
+    name is real-but-untabled, e.g. "gpt-4o", or the UNPRICED sentinel
+    itself) -- the two cases stay distinguishable via `model`,
     since a report can still say *which* model went unpriced. The four
     cost fields are None together with unpriced=True (never a silent
     0.0 standing in for "we don't know"); cache_cost is a real 0.0, not
@@ -42,13 +44,13 @@ def cost_of(usage: Usage, model: str | None = None) -> QueryCostLine:
     """Resolves the model to price against -- usage.model first (the
     call actually knows what it was), then the model argument (a
     caller's own fallback, e.g. the vendor's configured default), else
-    the literal "unpriced" -- then prices each bucket at that model's
-    rate. get_price("unpriced") naturally returns None (that string is
+    the UNPRICED sentinel -- then prices each bucket at that model's
+    rate. get_price(UNPRICED) naturally returns None (that string is
     never a real MODEL_PRICES key), so the no-name-at-all case needs no
     separate branch.
     """
     resolved_model = usage.model if usage.model is not None else (
-        model if model is not None else "unpriced"
+        model if model is not None else UNPRICED
     )
     price = get_price(resolved_model)
     if price is None:

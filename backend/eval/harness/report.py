@@ -12,7 +12,8 @@ import statistics
 
 from eval.harness.aggregate import AggregateReport
 from eval.harness.baseline import Regression
-from eval.harness.cost import cost_of
+from eval.harness.cost import UNPRICED, QueryCost, cost_of, query_cost
+from eval.harness.types import Stage
 from skycast.llm.usage import Usage
 
 
@@ -36,6 +37,74 @@ def print_variance(report: AggregateReport) -> None:
             print(line)
         for e in s.error_samples:
             print(f"    !! {e}")
+
+
+def _per_query_costs(report: AggregateReport) -> list[QueryCost]:
+    """Pairs each case's decompose Usage samples with that case's
+    synthesize Usage samples by run-index -- nrun.py runs decompose's
+    N-loop and synthesize's N-loop separately per case, so run i's
+    decompose and run i's synthesize were never the same live query
+    execution. This pairing is a cost *proxy*: treat only the mean
+    over all returned QueryCosts as a meaningful distributional
+    estimate of per-query cost -- no individual pair should be read as
+    "this is what query i actually cost." A case with no
+    f"{case_id}::synthesize" key at all (its dataset entry has no
+    checks_synthesize -- the harness's equivalent of the clarify path)
+    contributes queries with synthesize=None, not a missing/unpriced
+    entry (Task 24.3).
+    """
+    decompose_suffix = f"::{Stage.DECOMPOSE.value}"
+    case_ids = {
+        key[: -len(decompose_suffix)] for key in report.usages if key.endswith(decompose_suffix)
+    }
+    queries: list[QueryCost] = []
+    for case_id in sorted(case_ids):
+        decompose_usages = report.usages[f"{case_id}::{Stage.DECOMPOSE.value}"]
+        synthesize_usages = report.usages.get(f"{case_id}::{Stage.SYNTHESIZE.value}", [])
+        for i, decompose_usage in enumerate(decompose_usages):
+            synthesize_usage = synthesize_usages[i] if i < len(synthesize_usages) else None
+            queries.append(query_cost(decompose_usage, synthesize_usage))
+    return queries
+
+
+def _print_per_query_costs(report: AggregateReport) -> None:
+    queries = _per_query_costs(report)
+    if not queries:
+        return
+
+    priced = [q for q in queries if not q.unpriced]
+    if priced:
+        total_costs = [q.total_cost for q in priced]
+        print(
+            f"  mean per-query cost (run-index paired, n={len(priced)}): "
+            f"${statistics.mean(total_costs):.4f}/query"
+        )
+        decompose_costs = [q.decompose.total_cost for q in priced]
+        print(f"    decompose: ${statistics.mean(decompose_costs):.4f}/query")
+        synthesize_costs = [q.synthesize.total_cost for q in priced if q.synthesize is not None]
+        if synthesize_costs:
+            print(f"    synthesize: ${statistics.mean(synthesize_costs):.4f}/query")
+        else:
+            print("    synthesize: n/a (no query in this run reached synthesize)")
+
+        by_model: dict[str, list[float]] = {}
+        for q in priced:
+            by_model.setdefault(q.decompose.model, []).append(q.total_cost)
+        for model_name in sorted(by_model):
+            print(f"    {model_name}: ${statistics.mean(by_model[model_name]):.4f}/query")
+    else:
+        print("  mean per-query cost (run-index paired): n/a (no priced queries in this run)")
+
+    unpriced_models = sorted(
+        {
+            line.model
+            for q in queries
+            for line in (q.decompose, q.synthesize)
+            if line is not None and line.unpriced and line.model != UNPRICED
+        }
+    )
+    if unpriced_models:
+        print(f"  unpriced models seen: {', '.join(unpriced_models)} (no pricing data)")
 
 
 def print_cost(report: AggregateReport) -> None:
@@ -67,9 +136,18 @@ def print_cost(report: AggregateReport) -> None:
                 f" / {statistics.mean(u.cache_write_tokens for u in stage_usages):.0f} cache-write"
                 " tokens"
             )
+            priced_cost_lines = [c for c in (cost_of(u) for u in stage_usages) if not c.unpriced]
+            if priced_cost_lines:
+                line += (
+                    f", ${statistics.mean(c.input_cost for c in priced_cost_lines):.4f} input"
+                    f" / ${statistics.mean(c.output_cost for c in priced_cost_lines):.4f}"
+                    " output cost"
+                )
         else:
             line += ", tokens n/a (not exposed by seam)"
         print(line)
+
+    _print_per_query_costs(report)
 
     if all_usages:
         total = all_usages[0]
@@ -92,6 +170,30 @@ def print_cost(report: AggregateReport) -> None:
         cost_line = cost_of(total)
         if not cost_line.unpriced:
             print(f"  estimated cost (aggregate across this run): ${cost_line.total_cost:.4f}")
+
+            # Within-run counterfactual (Task 24.4): reprice this run's
+            # own cache tokens as if they'd been ordinary input, via the
+            # SAME cost_of used above -- the only difference is the
+            # Usage fed in (cache fields folded into input_tokens),
+            # never the pricing arithmetic itself, so "saved by
+            # caching" is genuinely what the price table would have
+            # charged for those tokens as normal input.
+            if total.cache_read_tokens or total.cache_write_tokens:
+                counterfactual_usage = Usage(
+                    input_tokens=(
+                        total.input_tokens + total.cache_read_tokens + total.cache_write_tokens
+                    ),
+                    output_tokens=total.output_tokens,
+                    model=total.model,
+                )
+                counterfactual_line = cost_of(counterfactual_usage)
+                if not counterfactual_line.unpriced:
+                    saved = counterfactual_line.total_cost - cost_line.total_cost
+                    print(
+                        "  counterfactual uncached cost (same tokens, no caching): "
+                        f"${counterfactual_line.total_cost:.4f}"
+                    )
+                    print(f"  saved by caching (within this run): ${saved:.4f}")
         else:
             print(f"  cost n/a (no pricing data for model {total.model!r})")
 
