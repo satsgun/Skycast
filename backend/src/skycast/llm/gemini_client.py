@@ -115,11 +115,21 @@ class GeminiLLMClient(LLMClient):
         called after a successful _generate() -- a call that raises
         never reaches here, so a failed call can't corrupt
         cumulative_usage.
+
+        Prompt caching (Task 23.4) is implicit/automatic on Gemini's side,
+        like OpenAI's -- no request-shape change, no cache-create step (the
+        SDK's cached_content config field is for a separate explicit-caching
+        flow this client doesn't use). cached_content_token_count is None
+        when caching didn't engage (short prompt, or a model/response that
+        doesn't support it) -- not an error. There's no write-count
+        equivalent field at all, so cache_write_tokens stays at Usage's
+        default of 0 for this vendor.
         """
         usage = Usage(
             input_tokens=response.usage_metadata.prompt_token_count,
             output_tokens=response.usage_metadata.candidates_token_count,
             model=self._model,
+            cache_read_tokens=response.usage_metadata.cached_content_token_count or 0,
         )
         self.cumulative_usage = (
             usage if self.cumulative_usage is None else self.cumulative_usage + usage

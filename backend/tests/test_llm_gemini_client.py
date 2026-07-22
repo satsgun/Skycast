@@ -26,25 +26,37 @@ class _Canned(BaseModel):
     value: str
 
 
-def _usage_metadata() -> types.GenerateContentResponseUsageMetadata:
+def _usage_metadata(
+    *, cached_content_token_count: int | None = None
+) -> types.GenerateContentResponseUsageMetadata:
     return types.GenerateContentResponseUsageMetadata(
-        prompt_token_count=10, candidates_token_count=5, total_token_count=15
+        prompt_token_count=10,
+        candidates_token_count=5,
+        total_token_count=15,
+        cached_content_token_count=cached_content_token_count,
     )
 
 
-def _response(text: str | None) -> types.GenerateContentResponse:
+def _response(
+    text: str | None,
+    *,
+    usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
+) -> types.GenerateContentResponse:
+    usage_metadata = usage_metadata if usage_metadata is not None else _usage_metadata()
     if text is None:
-        return types.GenerateContentResponse(candidates=[], usage_metadata=_usage_metadata())
+        return types.GenerateContentResponse(candidates=[], usage_metadata=usage_metadata)
     part = types.Part(text=text)
     content = types.Content(parts=[part], role="model")
     candidate = types.Candidate(content=content, finish_reason="STOP")
     return types.GenerateContentResponse(
-        candidates=[candidate], usage_metadata=_usage_metadata()
+        candidates=[candidate], usage_metadata=usage_metadata
     )
 
 
-def _valid_response(data: dict) -> types.GenerateContentResponse:
-    return _response(json.dumps(data))
+def _valid_response(
+    data: dict, *, usage_metadata: types.GenerateContentResponseUsageMetadata | None = None
+) -> types.GenerateContentResponse:
+    return _response(json.dumps(data), usage_metadata=usage_metadata)
 
 
 def _invalid_response() -> types.GenerateContentResponse:
@@ -295,6 +307,28 @@ def test_exception_during_repair_call_records_first_calls_usage_but_not_last_usa
     assert client.cumulative_usage == Usage(
         input_tokens=10, output_tokens=5, model="gemini-2.5-flash"
     )
+
+
+def test_cached_content_token_count_is_captured_into_cache_read_tokens() -> None:
+    response = _valid_response(
+        {"value": "sunny"}, usage_metadata=_usage_metadata(cached_content_token_count=900)
+    )
+    client, _ = _build_client([response])
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_read_tokens == 900
+    assert client.last_usage.cache_write_tokens == 0
+
+
+def test_cache_read_tokens_defaults_to_zero_when_response_omits_cached_content_token_count() -> (
+    None
+):
+    client, _ = _build_client([_valid_response({"value": "sunny"})])
+
+    _run_get_structured(client)
+
+    assert client.last_usage.cache_read_tokens == 0
 
 
 # --- _sanitize_schema ---
