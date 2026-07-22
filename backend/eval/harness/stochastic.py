@@ -10,11 +10,18 @@ only variable under test is the model's output. Scoring is:
 Gated behind a provided LLMClient. If none is supplied (no API key),
 every stochastic result is marked skipped -- ordinary CI stays green and
 offline; the real eval is one flag away.
+
+run_decompose/run_synthesize/run_end_to_end are async and MUST be
+awaited from within a single event loop shared across an entire
+stochastic pass (see nrun.py's run_stochastic_aggregated) -- never
+wrapped in their own per-call asyncio.run(). A vendor SDK client (e.g.
+google-genai's) can hold a persistent async HTTP session bound to
+whichever loop is running when it's first used; a fresh asyncio.run()
+per call would hand a long-lived client instance a *different* loop on
+every call after the first, breaking with "Event loop is closed".
 """
 
 from __future__ import annotations
-
-import asyncio
 
 from skycast.pipeline.decompose import decompose
 from skycast.pipeline.synthesize_stage import synthesize
@@ -50,13 +57,13 @@ def _ctx():
     return SessionContext(now=_NOW)
 
 
-def run_decompose(case: EvalCase, llm) -> StageResult:
+async def run_decompose(case: EvalCase, llm) -> StageResult:
     res = StageResult(case.id, Stage.DECOMPOSE, Tier.STOCHASTIC, ran=llm is not None)
     if llm is None or not case.checks_decompose:
         res.ran = False
         return res
     try:
-        spec = asyncio.run(decompose(case.query, _ctx(), llm))
+        spec = await decompose(case.query, _ctx(), llm)
     except Exception as e:
         res.error = f"{type(e).__name__}: {e}"
         return res
@@ -64,7 +71,7 @@ def run_decompose(case: EvalCase, llm) -> StageResult:
     return res
 
 
-def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
+async def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
     res = StageResult(case.id, Stage.SYNTHESIZE, Tier.STOCHASTIC, ran=llm is not None)
     if llm is None or not case.checks_synthesize:
         res.ran = False
@@ -75,13 +82,11 @@ def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
     providers = _providers_for(case)
     try:
         tool_plan = plan(case.canned_spec, providers)
-        result = asyncio.run(execute(tool_plan, providers, emit=_noop_emit, now=_NOW))
+        result = await execute(tool_plan, providers, emit=_noop_emit, now=_NOW)
         if not isinstance(result, Success):
             res.error = f"execute did not Succeed ({type(result).__name__}); cannot synthesize"
             return res
-        answer = asyncio.run(
-            synthesize(result.forecasts, case.canned_spec.intent, llm)
-        )
+        answer = await synthesize(result.forecasts, case.canned_spec.intent, llm)
     except Exception as e:
         res.error = f"{type(e).__name__}: {e}"
         return res
@@ -94,7 +99,7 @@ def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
     # gated LLM-judge tier
     if judge is not None and case.judge_rubric:
         try:
-            verdict = judge(case, answer, result.forecasts)
+            verdict = await judge(case, answer, result.forecasts)
             label = case.judge_rubric[:40]
             res.checks.append(
                 CheckResult(f"judge_well_formed::{label}", verdict.well_formed, verdict.detail)
@@ -109,7 +114,7 @@ def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
     return res
 
 
-def run_end_to_end(case: EvalCase, llm) -> StageResult:
+async def run_end_to_end(case: EvalCase, llm) -> StageResult:
     """Run the whole run_query generator; assert the terminal event type."""
     res = StageResult(case.id, Stage.END_TO_END, Tier.STOCHASTIC, ran=llm is not None)
     if llm is None or case.expect_terminal is None:
@@ -131,7 +136,7 @@ def run_end_to_end(case: EvalCase, llm) -> StageResult:
         return terminal
 
     try:
-        terminal = asyncio.run(_drive())
+        terminal = await _drive()
     except Exception as e:
         res.error = f"{type(e).__name__}: {e}"
         return res

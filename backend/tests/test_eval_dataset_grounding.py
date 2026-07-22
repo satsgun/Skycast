@@ -54,14 +54,14 @@ def test_umbrella_decision_grounded_check_fails_when_answer_contradicts_real_fix
         else "Bring an umbrella, rain is likely this afternoon."
     )
 
-    result = run_synthesize(_BY_ID["umbrella_decision"], _fake_llm(contradicting))
+    result = asyncio.run(run_synthesize(_BY_ID["umbrella_decision"], _fake_llm(contradicting)))
 
     grounded = next(c for c in result.checks if c.name == "answer_grounded_precip")
     assert not grounded.passed, grounded.detail
 
 
 def test_umbrella_decision_grounded_check_passes_when_answer_is_silent_on_rain() -> None:
-    result = run_synthesize(_BY_ID["umbrella_decision"], _fake_llm("Have a nice day."))
+    result = asyncio.run(run_synthesize(_BY_ID["umbrella_decision"], _fake_llm("Have a nice day.")))
 
     grounded = next(c for c in result.checks if c.name == "answer_grounded_precip")
     assert grounded.passed, grounded.detail
@@ -72,7 +72,7 @@ def test_temperature_and_condition_grounded_cases_produce_both_check_names() -> 
         case = _BY_ID[case_id]
         assert case.checks_synthesize_grounded is not None, case_id
 
-        result = run_synthesize(case, _fake_llm("A pleasant day overall."))
+        result = asyncio.run(run_synthesize(case, _fake_llm("A pleasant day overall.")))
 
         names = {c.name for c in result.checks}
         assert "answer_grounded_temperature" in names, case_id

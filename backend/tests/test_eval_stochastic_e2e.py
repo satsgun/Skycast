@@ -9,6 +9,8 @@ pipeline behavior, not a mock of it.
 
 from __future__ import annotations
 
+import asyncio
+
 from skycast.domain.location import Location
 from skycast.domain.provider import Granularity, WeatherVariable
 from skycast.llm.fake_client import FakeLLMClient
@@ -59,7 +61,7 @@ def _case(*, default_location: Location | None) -> EvalCase:
 
 
 def test_run_end_to_end_resolves_default_location_for_a_location_less_query() -> None:
-    result = run_end_to_end(_case(default_location=_LOCATION), _fake_llm())
+    result = asyncio.run(run_end_to_end(_case(default_location=_LOCATION), _fake_llm()))
 
     assert result.error is None
     terminal_check = result.checks[0]
@@ -70,7 +72,7 @@ def test_run_end_to_end_errors_without_a_default_location() -> None:
     """Contrast case: confirms the fix is precise -- a case that genuinely
     has no default location still surfaces as a real failure, not masked.
     """
-    result = run_end_to_end(_case(default_location=None), _fake_llm())
+    result = asyncio.run(run_end_to_end(_case(default_location=None), _fake_llm()))
 
     assert result.error is None
     terminal_check = result.checks[0]
@@ -124,7 +126,7 @@ def test_run_synthesize_invokes_grounded_factory_with_the_real_execute_forecasts
         saw_hyderabad = forecasts[0].location.name == "Hyderabad"
         return (Check("saw_hyderabad", lambda answer: (saw_hyderabad, "ok")),)
 
-    result = run_synthesize(_grounded_case(grounded=grounded), _synthesize_fake_llm())
+    result = asyncio.run(run_synthesize(_grounded_case(grounded=grounded), _synthesize_fake_llm()))
 
     assert result.error is None
     assert len(captured) == 1
@@ -136,7 +138,7 @@ def test_run_synthesize_invokes_grounded_factory_with_the_real_execute_forecasts
 
 
 def test_run_synthesize_without_grounded_factory_behaves_as_before() -> None:
-    result = run_synthesize(_grounded_case(grounded=None), _synthesize_fake_llm())
+    result = asyncio.run(run_synthesize(_grounded_case(grounded=None), _synthesize_fake_llm()))
 
     assert result.error is None
     assert [c.name for c in result.checks] == ["answer_nonempty"]

@@ -69,11 +69,13 @@ def _render_forecast(forecast: Forecast) -> str:
 
 def make_judge(llm):
     """Build a judge callable bound to an LLMClient. Returns None-safe:
-    call it with (case, answer, forecasts) -> Verdict.
+    await it with (case, answer, forecasts) -> Verdict. Async (not
+    asyncio.run()-wrapped internally) so it can be awaited from within
+    the same event loop as the rest of a stochastic pass -- see
+    stochastic.py's module docstring for why per-call asyncio.run()
+    breaks a long-lived vendor client.
     """
-    def judge(case, answer, forecasts) -> Verdict:
-        import asyncio
-
+    async def judge(case, answer, forecasts) -> Verdict:
         rendered = "\n".join(_render_forecast(f) for f in forecasts)
         user = (
             f"User query:\n{case.query}\n\n"
@@ -82,13 +84,11 @@ def make_judge(llm):
             f"Forecast data behind the answer:\n{rendered}\n\n"
             "Does the answer satisfy the rubric, and is it faithful to the forecast data?"
         )
-        verdict = asyncio.run(
-            llm.get_structured(
-                system=_JUDGE_SYSTEM,
-                user=user,
-                schema=JudgeVerdict,
-                tool_name="emit_verdict",
-            )
+        verdict = await llm.get_structured(
+            system=_JUDGE_SYSTEM,
+            user=user,
+            schema=JudgeVerdict,
+            tool_name="emit_verdict",
         )
         return Verdict(verdict.well_formed, verdict.faithful, verdict.rationale)
 

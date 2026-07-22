@@ -63,7 +63,7 @@ def test_judge_returns_well_formed_and_faithful_from_verdict() -> None:
     client = _FakeJudgeClient(fake_verdict)
     judge = make_judge(client)
 
-    verdict = judge(_case(), _answer(), [_forecast()])
+    verdict = asyncio.run(judge(_case(), _answer(), [_forecast()]))
 
     assert verdict.well_formed is True
     assert verdict.faithful is False
@@ -75,7 +75,7 @@ def test_judge_user_message_includes_rendered_forecast_data() -> None:
     client = _FakeJudgeClient(fake_verdict)
     judge = make_judge(client)
 
-    judge(_case(), _answer(), [_forecast(precip_probability=80.0)])
+    asyncio.run(judge(_case(), _answer(), [_forecast(precip_probability=80.0)]))
 
     user = client.calls[0]["user"]
     assert "precip_probability=80.0" in user

@@ -7,9 +7,22 @@ are captured per (case, stage) via InstrumentedLLMClient.
 
 Produces an AggregateReport, which feeds reporting, baseline diffing
 (Gap 2), and the cost note (Gap 3).
+
+The entire stochastic pass (every case x stage x N-run iteration) runs
+inside ONE event loop -- run_stochastic_aggregated makes exactly one
+asyncio.run() call, not one per stage-runner call. A vendor SDK client
+constructed once for the whole run (e.g. google-genai's Client, which
+holds a persistent async HTTP session) binds that session to whichever
+loop is running the first time it's used; a fresh asyncio.run() per
+call would hand it a *different*, dead loop on every call after the
+first, breaking with "Event loop is closed" (a real bug this fixes --
+see run_decompose/run_synthesize/run_end_to_end's shared docstring
+note in stochastic.py).
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from eval.harness.aggregate import AggregateReport, StageAggregate
 from eval.harness.instrument import InstrumentedLLMClient
@@ -53,12 +66,9 @@ def run_deterministic_aggregated(cases, report: AggregateReport) -> None:
             report.add(agg)
 
 
-def run_stochastic_aggregated(
+async def _run_stochastic_aggregated(
     cases, report: AggregateReport, llm, *, n: int, judge_enabled: bool, e2e: bool
 ) -> None:
-    """Stochastic tiers: N runs each, aggregated with variance + timing."""
-    if llm is None:
-        return
     instrumented = InstrumentedLLMClient(llm)
     judge = make_judge(instrumented) if judge_enabled else None
 
@@ -75,7 +85,7 @@ def run_stochastic_aggregated(
             any_ran = False
             for _ in range(n):
                 instrumented.snapshot_and_reset()  # clear before this run
-                sr = runner(case)
+                sr = await runner(case)
                 if not sr.ran:
                     break  # this stage doesn't apply to this case
                 any_ran = True
@@ -90,3 +100,20 @@ def run_stochastic_aggregated(
                 report.timings_ms[_key(case.id, stage)] = timings
                 if usages:
                     report.usages[_key(case.id, stage)] = usages
+
+
+def run_stochastic_aggregated(
+    cases, report: AggregateReport, llm, *, n: int, judge_enabled: bool, e2e: bool
+) -> None:
+    """Stochastic tiers: N runs each, aggregated with variance + timing.
+
+    Exactly one asyncio.run() for the whole pass (see module docstring)
+    -- never call run_decompose/run_synthesize/run_end_to_end (or wrap
+    another asyncio.run()) outside of this, or a long-lived vendor
+    client will see a different event loop per call again.
+    """
+    if llm is None:
+        return
+    asyncio.run(
+        _run_stochastic_aggregated(cases, report, llm, n=n, judge_enabled=judge_enabled, e2e=e2e)
+    )
