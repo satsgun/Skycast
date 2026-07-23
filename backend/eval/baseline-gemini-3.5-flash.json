@@ -1,0 +1,24 @@
+{
+  "stages": {
+    "decompose": {
+      "cases": 20,
+      "mean_pass_rate": 0.9417,
+      "noise_floor_stdev": 0.0315
+    },
+    "end_to_end": {
+      "cases": 21,
+      "mean_pass_rate": 0.9905,
+      "noise_floor_stdev": 0.0213
+    },
+    "plan": {
+      "cases": 20,
+      "mean_pass_rate": 1.0,
+      "noise_floor_stdev": 0.0
+    },
+    "synthesize": {
+      "cases": 6,
+      "mean_pass_rate": 0.9444,
+      "noise_floor_stdev": 0.0421
+    }
+  }
+}

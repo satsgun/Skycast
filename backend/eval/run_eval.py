@@ -20,6 +20,7 @@ Usage:
   python -m eval.run_eval --live --save-baseline eval/baseline.json
   python -m eval.run_eval --live --baseline eval/baseline.json   # regression check
   python -m eval.run_eval --live --save-cost-summary eval/cost_summary.json
+  python -m eval.run_eval --live --save-failures eval/failures.json
 
 Vendor/model/key from env: LLM_VENDOR (anthropic|openai|gemini),
 the vendor's *_API_KEY, optional LLM_MODEL.
@@ -40,6 +41,7 @@ from eval.harness.nrun import run_deterministic_aggregated, run_stochastic_aggre
 from eval.harness.report import print_variance, print_cost, print_regressions
 from eval.harness.baseline import save_baseline, load_baseline, diff_against_baseline
 from eval.harness.cost_summary import save_cost_summary
+from eval.harness.failures import save_failure_report
 
 
 def _build_llm():
@@ -94,6 +96,9 @@ def main() -> int:
     ap.add_argument(
         "--save-cost-summary", metavar="PATH", help="write a cost-summary JSON artifact"
     )
+    ap.add_argument(
+        "--save-failures", metavar="PATH", help="write per-check failure detail as JSON"
+    )
     args = ap.parse_args()
 
     report = AggregateReport()
@@ -123,6 +128,9 @@ def main() -> int:
     if args.save_cost_summary:
         save_cost_summary(report, args.save_cost_summary)
         print(f"\nCost summary written to {args.save_cost_summary}")
+    if args.save_failures:
+        save_failure_report(report, args.save_failures)
+        print(f"\nFailure detail written to {args.save_failures}")
     if args.baseline:
         base = load_baseline(args.baseline)
         if base is None:
