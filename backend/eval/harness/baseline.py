@@ -22,11 +22,38 @@ from eval.harness.aggregate import AggregateReport
 from eval.harness.types import SCORED_STAGES
 
 
+def _model_of(report: AggregateReport) -> str | None:
+    """The model that produced this report's stochastic results, if any.
+
+    Every captured Usage in a report shares the same model -- run_eval.py
+    builds exactly one LLMClient per run and reuses it for the whole
+    pass -- so the first non-None one found is representative. None for
+    a deterministic-only run (no --live, so report.usages is empty).
+
+    Not reused from report.py's aggregate_usage(), which does something
+    similar (sums every Usage for cost math): report.py imports
+    Regression from this module, so importing back would be circular,
+    and the two operations aren't the same thing anyway -- one sums
+    tokens, this just needs one representative label.
+    """
+    for usages in report.usages.values():
+        for u in usages:
+            if u.model is not None:
+                return u.model
+    return None
+
+
 def build_baseline(report: AggregateReport) -> dict:
     """Serialize per-stage scores + observed variance to a baseline dict.
 
     EXECUTE is excluded (see eval.harness.types.SCORED_STAGES) -- it's
     integration testing, not eval, per the wiki sketch.
+
+    Includes which model produced these scores (None if none captured,
+    e.g. a deterministic-only run) so a baseline is self-describing --
+    --baseline diffing is meant to catch drift on the SAME model, and
+    without this a diff against a different model would look identical
+    to a real regression.
     """
     per_stage: dict[str, dict] = {}
     # group case-level aggregates by stage
@@ -45,7 +72,7 @@ def build_baseline(report: AggregateReport) -> dict:
             "cases": len(aggs),
             "noise_floor_stdev": round(statistics.mean(stdevs), 4) if stdevs else 0.0,
         }
-    return {"stages": per_stage}
+    return {"model": _model_of(report), "stages": per_stage}
 
 
 def save_baseline(report: AggregateReport, path: str) -> None:
