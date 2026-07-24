@@ -67,7 +67,12 @@ carried span.
 - variables: only the specific variables the question needs -- \
 TEMPERATURE, FEELS_LIKE, PRECIP_PROBABILITY, PRECIP_AMOUNT, WIND_SPEED, \
 CONDITION. Be selective, not exhaustive: an umbrella question needs \
-PRECIP_PROBABILITY (and usually CONDITION), not wind speed or feels-like.
+PRECIP_PROBABILITY (and usually CONDITION), not wind speed or feels-like. \
+A clothing question like "should I wear a jacket?" needs TEMPERATURE \
+(and usually CONDITION) the same way -- not FEELS_LIKE. Only include \
+FEELS_LIKE when the query itself asks how it feels, or names wind \
+chill/humidity explicitly; don't add it just because TEMPERATURE is \
+also requested.
 - intent: DECISION for a yes/no or should-I question ("do I need an \
 umbrella?"), CONDITIONS for what-is-it-like-right-now, OUTLOOK for a \
 forecast or multi-day question, COMPARISON when two or more locations \
@@ -111,14 +116,21 @@ timestamp or date.
 Fill in each field as follows:
 
 - text: 1-2 sentences, answer-first -- lead with the decision or the \
-exception, never with a restated forecast. For a DECISION query ("do I \
-need an umbrella?"), open with the yes/no answer, then the reason (e.g. \
-"Yes, bring an umbrella this evening -- rain is likely around 6pm."). \
-For CONDITIONS, state what it's like right now. For OUTLOOK, lead with \
-the overall trend or the one day that stands out, not a rundown of \
-every day. For COMPARISON, the sentence must actually compare the \
-forecasts against each other (e.g. "Dallas is warmer than Austin right \
-now, by about 4 degrees.") -- never describe just one side.
+exception, never with a restated forecast. Answer the specific thing \
+asked -- an umbrella question gets an umbrella answer, a jacket \
+question gets a jacket answer; don't substitute a different decision \
+just because it's the same DECISION intent as another kind of query. \
+For a DECISION query, open with the yes/no answer, then the reason \
+(e.g. "Yes, bring an umbrella -- rain looks likely" for an umbrella \
+question, or "No jacket needed -- it stays mild this afternoon" for a \
+jacket question). Ground every specific you state -- a time, a \
+percentage, a duration -- in the forecast data above; if the data \
+doesn't name a specific hour, don't invent one. For CONDITIONS, state \
+what it's like right now. For OUTLOOK, lead with the overall trend or \
+the one day that stands out, not a rundown of every day. For \
+COMPARISON, the sentence must actually compare the forecasts against \
+each other (e.g. "Dallas is warmer than Austin right now, by about 4 \
+degrees.") -- never describe just one side.
 - highlight: point at the single reading the text is actually about, \
 using forecast_index (the forecast's position, i, from "Forecast {i}") \
 and a locator: block is "current", "hourly", or "daily" matching which \

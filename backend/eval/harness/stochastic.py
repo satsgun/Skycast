@@ -131,21 +131,25 @@ async def run_end_to_end(case: EvalCase, llm) -> StageResult:
 
     async def _drive():
         terminal = None
+        payload = None
         async for ev in run_query(req, providers, llm):
             terminal = ev.type.value if hasattr(ev.type, "value") else str(ev.type)
-        return terminal
+            payload = ev.data
+        return terminal, payload
 
     try:
-        terminal = await _drive()
+        terminal, payload = await _drive()
     except Exception as e:
         res.error = f"{type(e).__name__}: {e}"
         return res
 
+    detail = f"terminal={terminal} expected={case.expect_terminal}"
+    if terminal == "error":
+        kind = getattr(payload, "kind", None)
+        kind = getattr(kind, "value", str(kind))
+        detail += f" ({kind}: {getattr(payload, 'message', '?')})"
+
     res.checks.append(
-        CheckResult(
-            "terminal_event",
-            terminal == case.expect_terminal,
-            f"terminal={terminal} expected={case.expect_terminal}",
-        )
+        CheckResult("terminal_event", terminal == case.expect_terminal, detail)
     )
     return res

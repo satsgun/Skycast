@@ -283,7 +283,16 @@ DATASET: list[EvalCase] = [
         checks_decompose=(
             C.spec_names_default_location(),
             C.spec_location_count(0),
-            C.spec_variables_exact({"PRECIP_PROBABILITY"}),
+            # PRECIP_PROBABILITY is required; CONDITION is tolerated (not
+            # required), because the decompose prompt's own guidance says a
+            # precip question "usually" also wants CONDITION -- an exact-match
+            # check here was penalizing the model for correctly following that
+            # instruction. min_recall=0.0: spec_has_variable above already
+            # covers the one truly-required variable; nothing else is allowed.
+            C.spec_has_variable("PRECIP_PROBABILITY"),
+            C.spec_variables_prf(
+                {"PRECIP_PROBABILITY", "CONDITION"}, min_precision=1.0, min_recall=0.0
+            ),
         ),
         checks_synthesize=(C.answer_nonempty(),),
         expect_terminal="answer",

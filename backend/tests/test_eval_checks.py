@@ -14,6 +14,7 @@ from skycast.domain.conditions import ConditionCode
 from skycast.domain.forecast import Forecast, HourlyReading, Units
 from skycast.domain.location import Location
 
+from eval.cases.dataset import DATASET
 from eval.harness import checks as C
 
 _NOW = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
@@ -165,6 +166,69 @@ def test_spec_variables_exact_fails_for_missing_variable() -> None:
     check = C.spec_variables_exact(_PRECIP_AND_CONDITION)
     passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY"}))
     assert not passed, detail
+
+
+# --- spec_has_variable (previously untested, now load-bearing for
+# no_location_default below) ---
+
+
+def test_spec_has_variable_passes_when_present() -> None:
+    check = C.spec_has_variable("PRECIP_PROBABILITY")
+    passed, detail = check.predicate(_spec_vars({"PRECIP_PROBABILITY", "CONDITION"}))
+    assert passed, detail
+
+
+def test_spec_has_variable_fails_when_absent() -> None:
+    check = C.spec_has_variable("PRECIP_PROBABILITY")
+    passed, detail = check.predicate(_spec_vars({"CONDITION"}))
+    assert not passed, detail
+
+
+# --- no_location_default's decompose checks (dataset.py) --
+#
+# Regression coverage for the composed "PRECIP_PROBABILITY required,
+# CONDITION tolerated" rule: the decompose prompt's own guidance says a
+# precip question "usually" also wants CONDITION (the same guidance that
+# makes umbrella_decision expect it outright), so an exact-match check
+# here was penalizing the model for correctly following its instructions.
+# Imports the real DATASET so this guards dataset.py's actual wiring, not
+# a parallel copy of the same expected-set literal.
+
+
+def _default_location_spec(variables: set[str]) -> SimpleNamespace:
+    return SimpleNamespace(location_names=[], use_default_location=True, variables=variables)
+
+
+def _no_location_default_case():
+    return next(c for c in DATASET if c.id == "no_location_default")
+
+
+def _all_checks_pass(case, spec) -> bool:
+    return all(check.predicate(spec)[0] for check in case.checks_decompose)
+
+
+def test_no_location_default_passes_with_just_precip_probability() -> None:
+    case = _no_location_default_case()
+    assert _all_checks_pass(case, _default_location_spec({"PRECIP_PROBABILITY"}))
+
+
+def test_no_location_default_tolerates_condition_as_well() -> None:
+    case = _no_location_default_case()
+    assert _all_checks_pass(
+        case, _default_location_spec({"PRECIP_PROBABILITY", "CONDITION"})
+    )
+
+
+def test_no_location_default_rejects_other_extra_variables() -> None:
+    case = _no_location_default_case()
+    assert not _all_checks_pass(
+        case, _default_location_spec({"PRECIP_PROBABILITY", "WIND_SPEED"})
+    )
+
+
+def test_no_location_default_still_requires_precip_probability() -> None:
+    case = _no_location_default_case()
+    assert not _all_checks_pass(case, _default_location_spec({"CONDITION"}))
 
 
 # --- synthesize grounding checks (Task E4.2) ---

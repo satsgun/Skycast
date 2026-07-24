@@ -78,6 +78,8 @@ def test_run_end_to_end_errors_without_a_default_location() -> None:
     terminal_check = result.checks[0]
     assert not terminal_check.passed
     assert "terminal=error" in terminal_check.detail
+    assert "bad_input" in terminal_check.detail
+    assert "no default location is configured" in terminal_check.detail
 
 
 def test_dataset_default_location_cases_carry_a_default_location() -> None:
