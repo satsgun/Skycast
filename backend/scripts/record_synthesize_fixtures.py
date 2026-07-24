@@ -89,11 +89,13 @@ class _Scenario:
     def __init__(
         self,
         name: str,
+        query: str,
         forecasts: list[Forecast],
         intent: QueryIntent,
         placeholder_response: SynthesisOutput,
     ) -> None:
         self.name = name
+        self.query = query
         self.forecasts = forecasts
         self.intent = intent
         self.placeholder_response = placeholder_response
@@ -102,6 +104,7 @@ class _Scenario:
 _SCENARIOS: list[_Scenario] = [
     _Scenario(
         name="umbrella_decision",
+        query="Do I need an umbrella in Hyderabad this evening?",
         forecasts=[
             Forecast(
                 location=_hyderabad(),
@@ -136,6 +139,7 @@ _SCENARIOS: list[_Scenario] = [
     ),
     _Scenario(
         name="multi_day_outlook",
+        query="What's the outlook for Austin this week?",
         forecasts=[
             Forecast(
                 location=_austin(),
@@ -170,6 +174,7 @@ _SCENARIOS: list[_Scenario] = [
     ),
     _Scenario(
         name="comparison",
+        query="How does the weather in Dallas compare to Austin right now?",
         forecasts=[
             Forecast(
                 location=_austin(), units=Units(),
@@ -190,6 +195,7 @@ _SCENARIOS: list[_Scenario] = [
     ),
     _Scenario(
         name="current_conditions",
+        query="What's the weather like in Seattle right now?",
         forecasts=[
             Forecast(
                 location=_seattle(), units=Units(),
@@ -205,7 +211,7 @@ _SCENARIOS: list[_Scenario] = [
 
 
 async def _record_one(scenario: _Scenario, *, live: bool) -> dict:
-    user = _build_user_message(scenario.forecasts, scenario.intent)
+    user = _build_user_message(scenario.query, scenario.forecasts, scenario.intent)
 
     if live:
         model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
@@ -218,6 +224,7 @@ async def _record_one(scenario: _Scenario, *, live: bool) -> dict:
 
     return {
         "name": scenario.name,
+        "query": scenario.query,
         "intent": scenario.intent.value,
         "forecasts": [f.model_dump(mode="json") for f in scenario.forecasts],
         "system": SYNTHESIZE_SYSTEM_PROMPT,

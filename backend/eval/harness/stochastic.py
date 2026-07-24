@@ -86,7 +86,7 @@ async def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
         if not isinstance(result, Success):
             res.error = f"execute did not Succeed ({type(result).__name__}); cannot synthesize"
             return res
-        answer = await synthesize(result.forecasts, case.canned_spec.intent, llm)
+        answer = await synthesize(case.query, result.forecasts, case.canned_spec.intent, llm)
     except Exception as e:
         res.error = f"{type(e).__name__}: {e}"
         return res

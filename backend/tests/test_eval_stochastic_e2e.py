@@ -88,6 +88,19 @@ def test_dataset_default_location_cases_carry_a_default_location() -> None:
         assert by_id[case_id].default_location is not None, case_id
 
 
+def test_decision_sunscreen_and_run_wind_now_have_judge_coverage() -> None:
+    """decision_sunscreen and decision_run_wind are DECISION-intent, same
+    as decision_jacket/umbrella_decision -- they share the same synthesize
+    input-starvation bug those two exposed, but had no judge_rubric to
+    catch it, an unmeasured blind spot rather than a confirmed-clean one.
+    """
+    by_id = {c.id: c for c in DATASET}
+    for case_id in ("decision_sunscreen", "decision_run_wind"):
+        case = by_id[case_id]
+        assert case.checks_synthesize, case_id
+        assert case.judge_rubric, case_id
+
+
 # --- checks_synthesize_grounded wiring (Task E4.4) ---
 
 _HYDERABAD_SPEC = DataNeedsSpec(

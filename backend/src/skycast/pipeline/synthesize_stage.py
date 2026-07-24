@@ -27,12 +27,12 @@ _TOOL_NAME = "emit_synthesis"
 
 
 async def synthesize(
-    forecasts: list[Forecast], intent: QueryIntent, llm: LLMClient
+    query: str, forecasts: list[Forecast], intent: QueryIntent, llm: LLMClient
 ) -> AnswerPayload:
     """Raises LLMError / StructuredOutputError -- propagated from `llm`
     unchanged; the caller (orchestrator, Phase 5) maps them to SSE errors.
     """
-    user = _build_user_message(forecasts, intent)
+    user = _build_user_message(query, forecasts, intent)
     output = cast(
         SynthesisOutput,
         await llm.get_structured(
@@ -82,8 +82,8 @@ def _validate_highlight(
     return highlight
 
 
-def _build_user_message(forecasts: list[Forecast], intent: QueryIntent) -> str:
-    lines = [f"Intent: {intent.value}"]
+def _build_user_message(query: str, forecasts: list[Forecast], intent: QueryIntent) -> str:
+    lines = [f"Query: {query}", f"Intent: {intent.value}"]
     for i, forecast in enumerate(forecasts):
         lines.append(f"Forecast {i}: {forecast.location.name}")
         if forecast.current is not None:

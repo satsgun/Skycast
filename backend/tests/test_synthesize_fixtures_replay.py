@@ -45,7 +45,7 @@ def test_fixture_replays_and_validates(fixture_path: Path) -> None:
 
     replay_client = FakeLLMClient(responder)
 
-    payload = asyncio.run(synthesize(forecasts, intent, replay_client))
+    payload = asyncio.run(synthesize(fixture["query"], forecasts, intent, replay_client))
 
     assert payload.text
     assert payload.card.forecasts == forecasts

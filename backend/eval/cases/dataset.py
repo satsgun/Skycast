@@ -484,6 +484,11 @@ DATASET: list[EvalCase] = [
             C.spec_locations_exact(["São Paulo"]),
             C.spec_variables_exact({"CONDITION"}),
         ),
+        checks_synthesize=(C.answer_nonempty(), C.answer_leads_with_conclusion()),
+        judge_rubric=(
+            "Does the answer lead with a clear sunscreen yes/no, consistent "
+            "with the forecast's condition (clear/sunny vs. cloudy/rain)?"
+        ),
         expect_terminal="answer",
     ),
     EvalCase(
@@ -506,6 +511,10 @@ DATASET: list[EvalCase] = [
             C.spec_variables_prf({"WIND_SPEED"}, min_precision=0.5),
         ),
         checks_synthesize=(C.answer_nonempty(), C.answer_leads_with_conclusion()),
+        judge_rubric=(
+            "Does the answer lead with a clear yes/no about running in this "
+            "wind, consistent with the forecast's wind speed?"
+        ),
         expect_terminal="answer",
     ),
 

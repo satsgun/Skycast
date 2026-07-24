@@ -127,7 +127,7 @@ def test_synthesize_succeeds_through_anthropic() -> None:
         [_anthropic_tool_use(_SYNTHESIZE_TOOL_NAME, _SYNTHESIZE_CANNED)]
     )
 
-    result = asyncio.run(synthesize([_forecast()], QueryIntent.CONDITIONS, client))
+    result = asyncio.run(synthesize(_QUERY, [_forecast()], QueryIntent.CONDITIONS, client))
 
     assert result.text == _SYNTHESIZE_CANNED["text"]
     assert result.card.highlight is None
@@ -137,7 +137,7 @@ def test_synthesize_succeeds_through_openai() -> None:
     harness = _OpenAIHarness()
     client = harness.build([harness.valid_response(_SYNTHESIZE_CANNED)])
 
-    result = asyncio.run(synthesize([_forecast()], QueryIntent.CONDITIONS, client))
+    result = asyncio.run(synthesize(_QUERY, [_forecast()], QueryIntent.CONDITIONS, client))
 
     assert result.text == _SYNTHESIZE_CANNED["text"]
     assert result.card.highlight is None
@@ -147,7 +147,7 @@ def test_synthesize_succeeds_through_gemini() -> None:
     harness = _GeminiHarness()
     client = harness.build([harness.valid_response(_SYNTHESIZE_CANNED)])
 
-    result = asyncio.run(synthesize([_forecast()], QueryIntent.CONDITIONS, client))
+    result = asyncio.run(synthesize(_QUERY, [_forecast()], QueryIntent.CONDITIONS, client))
 
     assert result.text == _SYNTHESIZE_CANNED["text"]
     assert result.card.highlight is None
@@ -205,7 +205,7 @@ def test_live_decompose_through_gemini() -> None:  # pragma: no cover
 def test_live_synthesize_through_anthropic() -> None:  # pragma: no cover
     client = AnthropicLLMClient(model=os.environ.get("LLM_MODEL", "claude-haiku-4-5-20251001"))
 
-    result = asyncio.run(synthesize([_forecast()], QueryIntent.CONDITIONS, client))
+    result = asyncio.run(synthesize(_QUERY, [_forecast()], QueryIntent.CONDITIONS, client))
 
     assert result.text
 
@@ -219,7 +219,7 @@ def test_live_synthesize_through_openai() -> None:  # pragma: no cover
         model=os.environ.get("LLM_MODEL", "gpt-5-mini"), api_key=os.environ["OPENAI_API_KEY"]
     )
 
-    result = asyncio.run(synthesize([_forecast()], QueryIntent.CONDITIONS, client))
+    result = asyncio.run(synthesize(_QUERY, [_forecast()], QueryIntent.CONDITIONS, client))
 
     assert result.text
 
@@ -233,6 +233,6 @@ def test_live_synthesize_through_gemini() -> None:  # pragma: no cover
         model=os.environ.get("LLM_MODEL", "gemini-2.5-flash"), api_key=os.environ["GEMINI_API_KEY"]
     )
 
-    result = asyncio.run(synthesize([_forecast()], QueryIntent.CONDITIONS, client))
+    result = asyncio.run(synthesize(_QUERY, [_forecast()], QueryIntent.CONDITIONS, client))
 
     assert result.text

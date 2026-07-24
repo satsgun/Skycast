@@ -105,7 +105,7 @@ async def _run_query_inner(
 
     yield SSEEvent.step(_SYNTHESIZING_LABEL, PipelineStage.SYNTHESIZE)
     try:
-        answer = await synthesize(result.forecasts, spec.intent, llm)
+        answer = await synthesize(request.query, result.forecasts, spec.intent, llm)
     except (LLMError, StructuredOutputError) as exc:
         payload = map_error(exc)
         yield SSEEvent.error(kind=payload.kind, message=payload.message)

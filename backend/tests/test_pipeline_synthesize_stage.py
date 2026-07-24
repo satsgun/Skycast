@@ -15,6 +15,9 @@ from skycast.pipeline.synthesize_stage import synthesize
 from skycast.sse.payloads import ForecastBlock, Highlight, ReadingLocator
 
 
+_QUERY = "Do I need an umbrella?"
+
+
 def _run(coro):
     return asyncio.run(coro)
 
@@ -65,7 +68,7 @@ def test_happy_path_returns_text_and_card_and_calls_client_correctly() -> None:
 
     client = FakeLLMClient(responder)
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.text == output.text
     assert payload.card.forecasts == [forecast]
@@ -89,9 +92,10 @@ def test_user_message_includes_intent_location_and_block_markers() -> None:
 
     client = FakeLLMClient(responder)
 
-    _run(synthesize([forecast], QueryIntent.CONDITIONS, client))
+    _run(synthesize("What's the weather like in Hyderabad?", [forecast], QueryIntent.CONDITIONS, client))
 
     user = received["user"]
+    assert "Query: What's the weather like in Hyderabad?" in user
     assert "Intent: CONDITIONS" in user
     assert "Hyderabad" in user
     assert "current:" in user
@@ -99,11 +103,36 @@ def test_user_message_includes_intent_location_and_block_markers() -> None:
     assert "daily[0]:" in user
 
 
+def test_user_message_differs_only_by_query_text() -> None:
+    """Regression guard for the bug where synthesize() never received the
+    original query, so the model had no way to know whether a DECISION
+    question was about a jacket, an umbrella, or anything else -- two
+    calls with identical forecasts/intent but different query text must
+    produce user messages that differ (in the Query: line), proving the
+    text is actually threaded through rather than silently dropped.
+    """
+    forecast = _forecast()
+    captured: list[str] = []
+
+    def responder(*, system, user, schema, tool_name):
+        captured.append(user)
+        return _canned_output()
+
+    client = FakeLLMClient(responder)
+
+    _run(synthesize("Should I wear a jacket?", [forecast], QueryIntent.DECISION, client))
+    _run(synthesize("Do I need an umbrella?", [forecast], QueryIntent.DECISION, client))
+
+    assert captured[0] != captured[1]
+    assert "Query: Should I wear a jacket?" in captured[0]
+    assert "Query: Do I need an umbrella?" in captured[1]
+
+
 def test_card_carries_unmodified_input_forecast() -> None:
     forecast = _forecast()
     client = FakeLLMClient(lambda **_: _canned_output())
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.forecasts[0] == forecast
 
@@ -111,7 +140,7 @@ def test_card_carries_unmodified_input_forecast() -> None:
 def test_no_highlight_from_llm_produces_no_highlight_card() -> None:
     client = FakeLLMClient(lambda **_: _canned_output(highlight=None))
 
-    payload = _run(synthesize([_forecast()], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [_forecast()], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
 
@@ -121,7 +150,7 @@ def test_valid_current_highlight_passes_through() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight == highlight
 
@@ -131,7 +160,7 @@ def test_valid_hourly_highlight_passes_through() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.HOURLY, index=1))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.OUTLOOK, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.OUTLOOK, client))
 
     assert payload.card.highlight == highlight
 
@@ -142,7 +171,7 @@ def test_valid_daily_highlight_passes_through() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.DAILY, index=0))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.OUTLOOK, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.OUTLOOK, client))
 
     assert payload.card.highlight == highlight
 
@@ -152,7 +181,7 @@ def test_out_of_range_forecast_index_drops_highlight() -> None:
     highlight = Highlight(forecast_index=1, locator=ReadingLocator(block=ForecastBlock.CURRENT))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
     assert payload.text == _canned_output().text
@@ -163,7 +192,7 @@ def test_current_highlight_dropped_when_forecast_has_no_current() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
 
@@ -173,7 +202,7 @@ def test_hourly_highlight_dropped_when_forecast_has_no_hourly() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.HOURLY, index=0))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
 
@@ -183,7 +212,7 @@ def test_hourly_highlight_dropped_when_index_beyond_series() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.HOURLY, index=5))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
 
@@ -193,7 +222,7 @@ def test_daily_highlight_dropped_when_forecast_has_no_daily() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.DAILY, index=0))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
 
@@ -204,7 +233,7 @@ def test_daily_highlight_dropped_when_index_beyond_series() -> None:
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.DAILY, index=5))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    payload = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    payload = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert payload.card.highlight is None
 
@@ -216,7 +245,7 @@ def test_comparison_two_forecasts_card_carries_both_and_highlight_points_into_se
     output = SynthesisOutput(text="Dallas is warmer.", highlight=highlight)
     client = FakeLLMClient(lambda **_: output)
 
-    payload = _run(synthesize([austin, dallas], QueryIntent.COMPARISON, client))
+    payload = _run(synthesize(_QUERY, [austin, dallas], QueryIntent.COMPARISON, client))
 
     assert payload.card.forecasts == [austin, dallas]
     assert payload.card.highlight.forecast_index == 1
@@ -229,7 +258,7 @@ def test_propagates_llm_error() -> None:
     client = FakeLLMClient(lambda **_: error)
 
     with pytest.raises(LLMError) as exc_info:
-        _run(synthesize([_forecast()], QueryIntent.DECISION, client))
+        _run(synthesize(_QUERY, [_forecast()], QueryIntent.DECISION, client))
 
     assert exc_info.value is error
 
@@ -239,7 +268,7 @@ def test_propagates_structured_output_error() -> None:
     client = FakeLLMClient(lambda **_: error)
 
     with pytest.raises(StructuredOutputError) as exc_info:
-        _run(synthesize([_forecast()], QueryIntent.DECISION, client))
+        _run(synthesize(_QUERY, [_forecast()], QueryIntent.DECISION, client))
 
     assert exc_info.value is error
 
@@ -249,7 +278,7 @@ def test_determinism_same_inputs_and_fake_produce_equal_answer_payload() -> None
     highlight = Highlight(forecast_index=0, locator=ReadingLocator(block=ForecastBlock.CURRENT))
     client = FakeLLMClient(lambda **_: _canned_output(highlight))
 
-    first = _run(synthesize([forecast], QueryIntent.DECISION, client))
-    second = _run(synthesize([forecast], QueryIntent.DECISION, client))
+    first = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
+    second = _run(synthesize(_QUERY, [forecast], QueryIntent.DECISION, client))
 
     assert first == second
