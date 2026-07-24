@@ -15,7 +15,7 @@ to interpret yourself.
 
 ## Demo
 
-**Live app:** _TODO — add the deployed Vercel URL here._
+**Live app:** [https://skycast-pi-jet.vercel.app](https://skycast-pi-jet.vercel.app)
 
 ## How it works
 
