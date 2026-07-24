@@ -14,15 +14,59 @@ into `schema` by hand instead (the seam's contract is a validated
 instance regardless).
 """
 
+import re
 from typing import Any
 
 from google import genai
-from google.genai import errors, types
+from google.genai import types
 from pydantic import BaseModel, ValidationError
 
 from skycast.llm.client import LLMClient
 from skycast.llm.errors import LLMError, StructuredOutputError
 from skycast.llm.usage import Usage
+
+# gemini-3.5-flash has been observed twice to corrupt a token when
+# generating structured JSON output: once as a stray control character
+# replacing a non-ASCII character in a string field (silently passes
+# schema validation -- see _find_control_character below), and once as
+# a small int field corrupted into a runaway digit string, which trips
+# Python's built-in guard against the CVE-2020-10735 int<->str
+# conversion vulnerability instead of ever reaching validation. This is
+# CPython's own stable error text for that guard, not a digit count
+# (which is a configurable limit).
+_MALFORMED_OUTPUT_SIGNATURE = "integer string conversion"
+
+_CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _find_control_character(value: Any, path: str = "") -> str | None:
+    """Recursively scans a validated response for a stray control
+    character (e.g. a NUL byte) in any string field -- a known
+    gemini-3.5-flash corruption pattern (observed replacing "a with
+    tilde" with \\x00) that passes schema validation cleanly, since a
+    control character is still a syntactically valid str. Tab/newline/CR
+    are excluded -- legitimate in synthesized answer text.
+    """
+    if isinstance(value, str):
+        match = _CONTROL_CHAR_PATTERN.search(value)
+        if match:
+            return (
+                f"field {path!r} contains a stray control character "
+                f"(codepoint {ord(match.group())})"
+            )
+        return None
+    if isinstance(value, dict):
+        for key, sub in value.items():
+            found = _find_control_character(sub, f"{path}.{key}" if path else str(key))
+            if found:
+                return found
+    elif isinstance(value, list):
+        for i, sub in enumerate(value):
+            found = _find_control_character(sub, f"{path}[{i}]")
+            if found:
+                return found
+    return None
+
 
 _UNSUPPORTED_SCHEMA_KEYWORDS = {
     "uniqueItems", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
@@ -109,16 +153,30 @@ class GeminiLLMClient(LLMClient):
         )
 
     async def _generate(self, *, contents: str, config: types.GenerateContentConfig) -> Any:
-        try:
-            return await self._client.aio.models.generate_content(
-                model=self._model, contents=contents, config=config
-            )
-        except errors.APIError as exc:
-            raise LLMError(f"gemini request failed: {exc}", reason=type(exc).__name__) from exc
-        except Exception as exc:
-            # The seam's contract is that only LLMError/StructuredOutputError
-            # cross it, so anything else gets normalized here too.
-            raise LLMError(f"gemini request failed: {exc}", reason=type(exc).__name__) from exc
+        """The seam's contract is that only LLMError/StructuredOutputError
+        cross it, so any exception (an APIError or otherwise) gets
+        normalized here. Retries once, specifically on
+        _MALFORMED_OUTPUT_SIGNATURE -- a known gemini-3.5-flash
+        corruption pattern, not an ordinary transport failure -- before
+        giving up and tagging the reason so it's identifiable as model
+        output corruption rather than a real outage.
+        """
+        for attempt in range(2):
+            try:
+                return await self._client.aio.models.generate_content(
+                    model=self._model, contents=contents, config=config
+                )
+            except Exception as exc:
+                corrupted = _MALFORMED_OUTPUT_SIGNATURE in str(exc)
+                if corrupted and attempt == 0:
+                    continue
+                reason = "malformed_model_output" if corrupted else type(exc).__name__
+                message = (
+                    f"gemini returned corrupted output: {exc}"
+                    if corrupted
+                    else f"gemini request failed: {exc}"
+                )
+                raise LLMError(message, reason=reason) from exc
 
     def _record_usage(self, response: Any) -> Usage:
         """Builds this call's Usage from the real response (Gemini's
@@ -174,9 +232,13 @@ class GeminiLLMClient(LLMClient):
         if not text:
             return None, "empty response content"
         try:
-            return schema.model_validate_json(text), None
+            parsed = schema.model_validate_json(text)
         except ValidationError as exc:
             return None, str(exc)
+        corrupted = _find_control_character(parsed.model_dump())
+        if corrupted is not None:
+            return None, corrupted
+        return parsed, None
 
     @staticmethod
     def _build_config(*, schema: type[BaseModel], system: str) -> types.GenerateContentConfig:

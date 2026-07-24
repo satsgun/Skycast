@@ -14,7 +14,7 @@ from google.genai import _transformers
 from pydantic import BaseModel
 
 from skycast.llm.errors import LLMError, StructuredOutputError
-from skycast.llm.gemini_client import GeminiLLMClient, _sanitize_schema
+from skycast.llm.gemini_client import GeminiLLMClient, _find_control_character, _sanitize_schema
 from skycast.llm.usage import Usage
 from skycast.pipeline.data_needs import DataNeedsSpec
 from skycast.pipeline.synthesis_output import SynthesisOutput
@@ -208,6 +208,100 @@ def test_arbitrary_exception_during_repair_call_is_mapped_to_llm_error() -> None
 
     assert exc_info.value.__cause__ is raised
     assert len(fake.aio.models.calls) == 2
+
+
+# --- defenses against gemini-3.5-flash's structured-output corruption:
+# observed once as a stray control character replacing a non-ASCII
+# character in a string field (silently passes schema validation), and
+# once as a small int field corrupted into a runaway digit string
+# (raises Python's built-in int<->str conversion-limit guard). ---
+
+_DIGIT_LIMIT_ERROR = ValueError(
+    "Exceeds the limit (4300 digits) for integer string conversion: "
+    "value has 5588 digits; use sys.set_int_max_str_digits() to increase the limit"
+)
+
+
+def test_malformed_output_signature_retries_once_and_recovers() -> None:
+    client, fake = _build_client([_DIGIT_LIMIT_ERROR, _valid_response({"value": "sunny"})])
+
+    result = asyncio.run(
+        client.get_structured(
+            system="sys prompt", user="query", schema=_Canned, tool_name=_TOOL_NAME
+        )
+    )
+
+    assert result == _Canned(value="sunny")
+    assert len(fake.aio.models.calls) == 2
+
+
+def test_malformed_output_signature_exhausted_raises_with_clear_reason() -> None:
+    client, fake = _build_client([_DIGIT_LIMIT_ERROR, _DIGIT_LIMIT_ERROR])
+
+    with pytest.raises(LLMError) as exc_info:
+        asyncio.run(
+            client.get_structured(
+                system="sys prompt", user="query", schema=_Canned, tool_name=_TOOL_NAME
+            )
+        )
+
+    assert exc_info.value.reason == "malformed_model_output"
+    assert str(exc_info.value).startswith("gemini returned corrupted output")
+    assert len(fake.aio.models.calls) == 2
+
+
+def test_control_character_in_response_triggers_repair_then_recovers() -> None:
+    corrupted = _valid_response({"value": "S\x00o Paulo"})
+    clean = _valid_response({"value": "São Paulo"})
+    client, fake = _build_client([corrupted, clean])
+
+    result = asyncio.run(
+        client.get_structured(
+            system="sys prompt", user="query", schema=_Canned, tool_name=_TOOL_NAME
+        )
+    )
+
+    assert result == _Canned(value="São Paulo")
+    assert len(fake.aio.models.calls) == 2
+
+
+def test_control_character_persists_through_repair_raises_structured_output_error() -> None:
+    corrupted = _valid_response({"value": "S\x00o Paulo"})
+    client, fake = _build_client([corrupted, corrupted])
+
+    with pytest.raises(StructuredOutputError):
+        asyncio.run(
+            client.get_structured(
+                system="sys prompt", user="query", schema=_Canned, tool_name=_TOOL_NAME
+            )
+        )
+
+    assert len(fake.aio.models.calls) == 2
+
+
+def test_response_with_legitimate_whitespace_is_not_flagged_as_corrupted() -> None:
+    client, fake = _build_client([_valid_response({"value": "line one\nline two\ttabbed"})])
+
+    result = asyncio.run(
+        client.get_structured(
+            system="sys prompt", user="query", schema=_Canned, tool_name=_TOOL_NAME
+        )
+    )
+
+    assert result.value == "line one\nline two\ttabbed"
+    assert len(fake.aio.models.calls) == 1
+
+
+def test_find_control_character_recurses_into_lists() -> None:
+    """DataNeedsSpec.location_names is a list[str] -- the real-world
+    shape this needs to catch a corrupted entry in (e.g. a location
+    name), not just a top-level dict field like the other tests above
+    exercise via _Canned.
+    """
+    found = _find_control_character(["clean", "has\x00null"])
+
+    assert found is not None
+    assert "[1]" in found
 
 
 # --- Task 22.4: usage tracking ---
