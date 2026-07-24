@@ -85,16 +85,29 @@ def _validate_highlight(
 def _build_user_message(query: str, forecasts: list[Forecast], intent: QueryIntent) -> str:
     lines = [f"Query: {query}", f"Intent: {intent.value}"]
     for i, forecast in enumerate(forecasts):
-        lines.append(f"Forecast {i}: {forecast.location.name}")
-        if forecast.current is not None:
-            lines.append(f"  current: {_render_hourly(forecast.current)}")
-        if forecast.hourly is not None:
-            for j, reading in enumerate(forecast.hourly):
-                lines.append(f"  hourly[{j}]: {_render_hourly(reading)}")
-        if forecast.daily is not None:
-            for j, reading in enumerate(forecast.daily):
-                lines.append(f"  daily[{j}]: {_render_daily(reading)}")
+        lines.extend(render_forecast_lines(i, forecast))
     return "\n".join(lines)
+
+
+def render_forecast_lines(index: int, forecast: Forecast) -> list[str]:
+    """Renders one forecast's full data -- every current/hourly/daily
+    reading, not a single selected one -- exactly as synthesize's own
+    user message does. Public so eval/harness/judge.py can show the
+    judge the same complete data the model had (a truncated
+    single-reading render there previously caused false 'unfaithful'
+    verdicts whenever the model correctly cited a real reading other
+    than the first).
+    """
+    lines = [f"Forecast {index}: {forecast.location.name}"]
+    if forecast.current is not None:
+        lines.append(f"  current: {_render_hourly(forecast.current)}")
+    if forecast.hourly is not None:
+        for j, reading in enumerate(forecast.hourly):
+            lines.append(f"  hourly[{j}]: {_render_hourly(reading)}")
+    if forecast.daily is not None:
+        for j, reading in enumerate(forecast.daily):
+            lines.append(f"  daily[{j}]: {_render_daily(reading)}")
+    return lines
 
 
 def _render_hourly(reading: HourlyReading) -> str:

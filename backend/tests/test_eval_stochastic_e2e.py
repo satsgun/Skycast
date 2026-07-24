@@ -19,6 +19,7 @@ from skycast.pipeline.synthesis_output import SynthesisOutput
 
 from eval.cases.dataset import DATASET
 from eval.harness import checks as C
+from eval.harness.judge import Verdict
 from eval.harness.stochastic import run_end_to_end, run_synthesize
 from eval.harness.types import Check, EvalCase
 
@@ -157,3 +158,35 @@ def test_run_synthesize_without_grounded_factory_behaves_as_before() -> None:
 
     assert result.error is None
     assert [c.name for c in result.checks] == ["answer_nonempty"]
+
+
+# --- judge check detail includes the raw answer text (follow-up to the
+# judge-rendering fix: a judge verdict's rationale alone wasn't enough to
+# debug a failed check after the fact, since failures.json never
+# persisted what the model actually wrote) ---
+
+
+def _judge_case() -> EvalCase:
+    return EvalCase(
+        id="judge_detail_wiring",
+        query="Will it rain in Hyderabad?",
+        canned_spec=_HYDERABAD_SPEC,
+        checks_synthesize=(C.answer_nonempty(),),
+        judge_rubric="Does the answer lead with a clear yes/no?",
+    )
+
+
+async def _fake_judge(case, answer, forecasts) -> Verdict:
+    return Verdict(well_formed=True, faithful=False, detail="rain claim contradicts data")
+
+
+def test_judge_check_detail_includes_the_raw_synthesized_answer_text() -> None:
+    result = asyncio.run(
+        run_synthesize(_judge_case(), _synthesize_fake_llm(), judge=_fake_judge)
+    )
+
+    assert result.error is None
+    faithful = next(c for c in result.checks if c.name.startswith("judge_faithful"))
+    assert not faithful.passed
+    assert "rain claim contradicts data" in faithful.detail
+    assert "It looks clear right now." in faithful.detail

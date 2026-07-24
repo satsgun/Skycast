@@ -11,7 +11,7 @@ from skycast.domain.conditions import ConditionCode
 from skycast.domain.forecast import Forecast, HourlyReading, Units
 from skycast.domain.location import Location
 
-from eval.harness.judge import _JUDGE_SYSTEM, _render_forecast, JudgeVerdict, make_judge
+from eval.harness.judge import _JUDGE_SYSTEM, JudgeVerdict, make_judge
 
 _NOW = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
 
@@ -78,9 +78,42 @@ def test_judge_user_message_includes_rendered_forecast_data() -> None:
     asyncio.run(judge(_case(), _answer(), [_forecast(precip_probability=80.0)]))
 
     user = client.calls[0]["user"]
-    assert "precip_probability=80.0" in user
+    assert "precip 80.0%" in user
     assert "Hyderabad" in user
     assert "RAIN" in user
+
+
+def test_judge_user_message_includes_every_hourly_reading_not_just_the_first() -> None:
+    """Regression guard: judge.py used to render only select_reading(forecast,
+    None) -- current, else hourly[0] -- so a model correctly citing a LATER
+    hour's real value (e.g. an afternoon reading, for a query about "this
+    afternoon") was flagged as unfaithful purely because the judge was never
+    shown that hour at all (see judge.py's docstring). The judge must see
+    every reading the model actually had, not a single cherry-picked one.
+    """
+    forecast = Forecast(
+        location=Location(id="test:hyderabad", name="Hyderabad", latitude=0.0, longitude=0.0),
+        units=Units(),
+        hourly=[
+            HourlyReading(
+                timestamp=_NOW, temperature=27.6, precip_probability=88.6,
+                condition_code=ConditionCode.RAIN,
+            ),
+            HourlyReading(
+                timestamp=_NOW, temperature=24.0, precip_probability=84.6,
+                condition_code=ConditionCode.RAIN,
+            ),
+        ],
+    )
+    fake_verdict = JudgeVerdict(well_formed=True, faithful=True, rationale="ok")
+    client = _FakeJudgeClient(fake_verdict)
+    judge = make_judge(client)
+
+    asyncio.run(judge(_case(), _answer(), [forecast]))
+
+    user = client.calls[0]["user"]
+    assert "precip 88.6%" in user
+    assert "precip 84.6%" in user
 
 
 def test_judge_system_prompt_includes_faithfulness_clause() -> None:
@@ -88,14 +121,3 @@ def test_judge_system_prompt_includes_faithfulness_clause() -> None:
     assert "contradicts" in _JUDGE_SYSTEM
 
 
-def test_render_forecast_uses_current_reading() -> None:
-    rendering = _render_forecast(_forecast(name="Tokyo", temperature=15.0, precip_probability=20.0))
-    assert "Tokyo" in rendering
-    assert "temperature=15.0" in rendering
-    assert "precip_probability=20.0" in rendering
-
-
-def test_render_forecast_omits_none_fields() -> None:
-    rendering = _render_forecast(_forecast(precip_probability=None, wind_speed=None))
-    assert "precip_probability" not in rendering
-    assert "wind_speed" not in rendering

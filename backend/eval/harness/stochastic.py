@@ -101,11 +101,12 @@ async def run_synthesize(case: EvalCase, llm, judge=None) -> StageResult:
         try:
             verdict = await judge(case, answer, result.forecasts)
             label = case.judge_rubric[:40]
+            detail = f'{verdict.detail} (answer: "{answer.text}")'
             res.checks.append(
-                CheckResult(f"judge_well_formed::{label}", verdict.well_formed, verdict.detail)
+                CheckResult(f"judge_well_formed::{label}", verdict.well_formed, detail)
             )
             res.checks.append(
-                CheckResult(f"judge_faithful::{label}", verdict.faithful, verdict.detail)
+                CheckResult(f"judge_faithful::{label}", verdict.faithful, detail)
             )
         except Exception as e:
             res.checks.append(

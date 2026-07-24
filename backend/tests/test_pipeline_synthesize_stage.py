@@ -11,7 +11,7 @@ from skycast.llm.fake_client import FakeLLMClient
 from skycast.pipeline.data_needs import QueryIntent
 from skycast.pipeline.prompts import SYNTHESIZE_SYSTEM_PROMPT
 from skycast.pipeline.synthesis_output import SynthesisOutput
-from skycast.pipeline.synthesize_stage import synthesize
+from skycast.pipeline.synthesize_stage import render_forecast_lines, synthesize
 from skycast.sse.payloads import ForecastBlock, Highlight, ReadingLocator
 
 
@@ -271,6 +271,32 @@ def test_propagates_structured_output_error() -> None:
         _run(synthesize(_QUERY, [_forecast()], QueryIntent.DECISION, client))
 
     assert exc_info.value is error
+
+
+def test_render_forecast_lines_matches_the_user_message_rendering() -> None:
+    """render_forecast_lines is public so eval/harness/judge.py can reuse
+    it to show the judge the same complete forecast data the model saw
+    (single source of truth -- see judge.py's docstring). Confirms it
+    produces exactly the lines _build_user_message embeds.
+    """
+    forecast = _forecast(
+        current=_current(),
+        hourly=[_current(20.0)],
+        daily=[DailyReading(date=date(2026, 7, 7), temp_min=18.0, temp_max=30.0, condition_code=ConditionCode.CLEAR)],
+    )
+    received: dict = {}
+
+    def responder(*, system, user, schema, tool_name):
+        received["user"] = user
+        return _canned_output()
+
+    client = FakeLLMClient(responder)
+    _run(synthesize(_QUERY, [forecast], QueryIntent.CONDITIONS, client))
+
+    lines = render_forecast_lines(0, forecast)
+
+    assert "\n".join(lines) in received["user"]
+    assert lines[0] == "Forecast 0: Hyderabad"
 
 
 def test_determinism_same_inputs_and_fake_produce_equal_answer_payload() -> None:

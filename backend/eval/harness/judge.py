@@ -16,8 +16,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 
-from skycast.domain.forecast import DailyReading, Forecast
-from eval.harness.grounding import select_reading
+from skycast.domain.forecast import Forecast
+from skycast.pipeline.synthesize_stage import render_forecast_lines
 
 
 class JudgeVerdict(BaseModel):
@@ -46,25 +46,21 @@ _JUDGE_SYSTEM = (
 )
 
 
-def _render_forecast(forecast: Forecast) -> str:
-    reading = select_reading(forecast, None)
-    fields = [f"location={forecast.location.name}"]
-    if isinstance(reading, DailyReading):
-        temp_min, temp_max, wind = reading.temp_min, reading.temp_max, reading.wind_speed_max
-        if temp_min is not None:
-            fields.append(f"temp_min={temp_min}")
-        if temp_max is not None:
-            fields.append(f"temp_max={temp_max}")
-    else:
-        if reading.temperature is not None:
-            fields.append(f"temperature={reading.temperature}")
-        wind = reading.wind_speed
-    if reading.precip_probability is not None:
-        fields.append(f"precip_probability={reading.precip_probability}")
-    if wind is not None:
-        fields.append(f"wind_speed={wind}")
-    fields.append(f"condition={reading.condition_code.value}")
-    return ", ".join(fields)
+def _render_forecasts(forecasts: list[Forecast]) -> str:
+    """Renders every reading of every forecast -- reusing synthesize's own
+    renderer (`render_forecast_lines`) so the judge sees exactly the same
+    complete data the model had, not a single cherry-picked reading. A
+    prior version used `select_reading(forecast, None)`, whose fallback
+    precedence (current -> hourly[0] -> daily[0]) meant the judge only
+    ever saw the FIRST reading -- so a model correctly citing a real,
+    later reading (e.g. an afternoon hour, for a query about "this
+    afternoon") got flagged as unfaithful purely because the judge was
+    never shown that reading at all.
+    """
+    lines: list[str] = []
+    for i, forecast in enumerate(forecasts):
+        lines.extend(render_forecast_lines(i, forecast))
+    return "\n".join(lines)
 
 
 def make_judge(llm):
@@ -76,7 +72,7 @@ def make_judge(llm):
     breaks a long-lived vendor client.
     """
     async def judge(case, answer, forecasts) -> Verdict:
-        rendered = "\n".join(_render_forecast(f) for f in forecasts)
+        rendered = _render_forecasts(forecasts)
         user = (
             f"User query:\n{case.query}\n\n"
             f"Assistant answer:\n{answer.text}\n\n"
