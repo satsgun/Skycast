@@ -13,6 +13,10 @@ to interpret yourself.
   <img src="https://github.com/user-attachments/assets/3f27717f-a5d9-4e04-99d6-3cbe7ac73ad7" alt="SkyCast answering &quot;do I need an umbrella this evening?&quot; with an answer-first conclusion, forecast card, and the relevant hour highlighted in the hourly strip" width="420" />
 </p>
 
+## Demo
+
+**Live app:** _TODO — add the deployed Vercel URL here._
+
 ## How it works
 
 A natural-language query runs through a four-stage agentic pipeline,
